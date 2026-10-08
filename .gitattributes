@@ -1,0 +1,17 @@
+# 统一换行符，避免 Windows 上检出的 CRLF 破坏 Linux/CI 环境
+* text=auto
+
+# shell 脚本必须是 LF，否则在 Unix 上会因 CRLF 报 "bad interpreter"
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Windows 批处理用 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制资源不做换行符转换
+*.jar binary
+*.png binary
+*.jpg binary
+*.zip binary
+*.ogg binary
