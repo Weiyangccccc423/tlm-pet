@@ -40,12 +40,14 @@ public final class MaidSingletonGuard {
     public enum Decision {
         /** 玩家还没有女仆，放行。 */
         ALLOW_FIRST_ACQUISITION,
-        /** 来者就是她本人，放行。 */
+        /** 她本来就该回来（在桌宠里 / 在胶卷里），放行。 */
         ALLOW_IS_HER,
         /** 玩家已经有女仆，而来者不是她 —— 必须拒绝。 */
         DENY_ALREADY_BOUND,
         /** 来者是已经被正式放手的那一位 —— 仪式不可撤销，拒绝复活。 */
-        DENY_RELEASED
+        DENY_RELEASED,
+        /** 来者自称是她，但她<b>已经在世界里</b>了 —— 这是复制品，必须拒绝。 */
+        DENY_DUPLICATE
     }
 
     /**
@@ -63,7 +65,20 @@ public final class MaidSingletonGuard {
             return Decision.ALLOW_FIRST_ACQUISITION;
         }
         if (arrivingMaidId != null && current.isHer(arrivingMaidId)) {
-            return Decision.ALLOW_IS_HER;
+            // 「是她」本身不足以放行 —— 还要看她的记录<b>期不期待</b>她回来。
+            //
+            // CARRIED / FILM_HELD 表示她此刻不在世界里（在桌宠里、或在一张胶卷里），
+            // 所以来者正是她本人。
+            //
+            // 而 IN_WORLD 表示她<b>已经在这个世界里站着</b>。此时再来一个自称是同一个 maidId
+            // 的实体，就只可能是复制品 —— 创造模式中键复制胶卷、NBT 复制、或把载荷文件
+            // 复制一份再导入。这条判定不需要扫描世界里的实体，因此也不受"她在未加载区块里"
+            // 的影响：记录里的 soulState 就是权威。
+            SoulState now = current.getSoulState();
+            if (now == SoulState.CARRIED || now == SoulState.FILM_HELD) {
+                return Decision.ALLOW_IS_HER;
+            }
+            return Decision.DENY_DUPLICATE;
         }
         return Decision.DENY_ALREADY_BOUND;
     }

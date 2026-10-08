@@ -6,7 +6,8 @@
   "refmap": "tlm_pet.refmap.json",
   "mixins": [
     "advancement.MaidEventTriggerMixin",
-    "advancement.AltarCraftTriggerMixin"
+    "advancement.AltarCraftTriggerMixin",
+    "entity.EntityMaidTameMixin"
   ],
   "client": [],
   "injectors": {

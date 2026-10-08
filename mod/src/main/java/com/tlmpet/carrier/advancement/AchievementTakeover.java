@@ -1,5 +1,6 @@
 package com.tlmpet.carrier.advancement;
 
+import com.tlmpet.carrier.core.MaidReleaseRitual;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -45,6 +46,14 @@ public final class AchievementTakeover {
      */
     private static final String ORPHAN_EVENT_TAMED_FROM_STRUCTURE = "tamed_maid_from_structure";
 
+    /**
+     * 放手仪式的配方。
+     * <p>
+     * 它<b>没有</b>要被接管的上游成就 —— 触发它只为了让仪式本身跑起来。
+     */
+    private static final ResourceLocation RELEASE_RECIPE =
+            ResourceLocation.fromNamespaceAndPath("tlm_pet", "altar/release_maid");
+
     private AchievementTakeover() {
     }
 
@@ -69,9 +78,26 @@ public final class AchievementTakeover {
     /**
      * 处理 {@code AltarCraftTrigger.trigger}。
      *
+     * <h2>为什么放手仪式挂在这里，以及它的已知粗糙处</h2>
+     * {@code BlockAltar} 的顺序是 {@code spawnOutputEntity} → {@code removeAllAltarItem} →
+     * {@code ALTAR_CRAFT.trigger}，所以走到这里时祭坛上的材料<b>已经被消耗了</b>。
+     * 也就是说：若玩家用一张<b>别人的</b>胶卷摆了仪式，我们会拒绝放手，但那颗下界之星
+     * 和那张胶卷已经没了。
+     *
+     * <p>这是当前实现的<b>已知粗糙处</b>，不是正确性问题（不会造成复制或数据丢失），
+     * 因此没有为它再引入一个针对 {@code BlockAltar.spawnResultEntity} 的 mixin。
+     * 要在消耗前拦住，正确的位置是那个方法（材料此时都还在基座上，取消即可退还），
+     * 代价是多一个针对私有方法的 mixin —— 留待验收后按体感决定是否值得。
+     * 仪式的"三重防线"里，胶卷与稀有祭品由配方保证，摆放本身即确认。
+     *
      * @return {@code true} 表示已接管，调用方应取消原版成就的授予
      */
     public static boolean interceptAltarCraft(ServerPlayer player, ResourceLocation recipeId) {
+        if (RELEASE_RECIPE.equals(recipeId)) {
+            MaidReleaseRitual.perform(player);
+            // 仪式是我们自己的配方，没有原版成就需要取消。
+            return false;
+        }
         ResourceLocation replacement = ALTAR_RECIPES.get(recipeId);
         if (replacement == null) {
             return false;

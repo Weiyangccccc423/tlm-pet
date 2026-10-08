@@ -2,6 +2,7 @@ package com.tlmpet.carrier.command;
 
 import com.tlmpet.carrier.TlmPetCarrier;
 import com.tlmpet.carrier.core.CarrierPayload;
+import com.tlmpet.carrier.core.MaidArchive;
 import com.tlmpet.carrier.core.MaidCarrierStore;
 import com.tlmpet.carrier.core.MaidExtractor;
 import com.tlmpet.carrier.core.MaidInjector;
@@ -29,6 +30,7 @@ import net.minecraftforge.fml.common.Mod;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -81,6 +83,13 @@ public final class TlmPetCommand {
                         .then(Commands.argument("player", StringArgumentType.string())
                                 .suggests(TlmPetCommand::suggestPlayers)
                                 .executes(TlmPetCommand::showPlayerStatus)))
+                .then(Commands.literal("lost")
+                        // 刻意要求玩家逐字打出确认串，而不是一个 flag 或一次回车。
+                        // 这是不可逆操作里最容易造成"平白失去她"的一个（§12.7），
+                        // 所以让它无法被误触、也无法被脚本化地一把梭。
+                        .then(Commands.literal("declare")
+                                .then(Commands.literal("confirm")
+                                        .executes(TlmPetCommand::declareLost))))
                 .then(Commands.literal("reset")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.argument("player", StringArgumentType.string())
@@ -198,6 +207,64 @@ public final class TlmPetCommand {
                     .withStyle(intact ? ChatFormatting.GRAY : ChatFormatting.RED), false);
         }
         return files.size();
+    }
+
+    // ==================================================================================
+    // lost（宣告失散，§12.7）
+    // ==================================================================================
+
+    /**
+     * 承认已经失去她，让她回到 {@code NONE}，从而可以重新开始。
+     *
+     * <h2>这里为什么没有"桌宠是否在线"的检查</h2>
+     * 因为桌宠（Phase 2）还不存在。而 §12.7 注意点 1 是整份设计里最不可接受的一条错误来源：
+     * <blockquote>
+     * 不能把"桌宠没启动"误判为"数据丢失"。判定失散的前提是桌宠<b>明确在线</b>并
+     * <b>明确返回"无此 maidId"</b>。
+     * </blockquote>
+     * 所以当前的实现<b>故意只依赖玩家的显式动作</b>（逐字打出 {@code declare confirm}），
+     * 不做任何自动判定 —— 宁可让玩家自己按下去，也不要让一个还没实现的在线检查
+     * 替他把女仆判死。桌宠落地后，这个命令应当降级为"仅在桌宠确认无此数据时可用"的兜底，
+     * 而不是主要入口。
+     */
+    private static int declareLost(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) {
+            context.getSource().sendFailure(Component.literal("该命令只能由玩家执行"));
+            return 0;
+        }
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return 0;
+        }
+        MaidCarrierState state = MaidCarrierStateStore.get(server, player.getUUID()).orElse(null);
+        if (state == null || state.getMaidId() == null || !state.hasMaid()) {
+            context.getSource().sendFailure(Component.literal("你没有可宣告失散的女仆。"));
+            return 0;
+        }
+
+        UUID maidId = state.getMaidId();
+        // 归档到 _lost/：与放手不同，这里**不**立墓碑 —— 失散是承认失去，
+        // 若玩家日后找回了她的数据，让她回来应当是被允许的（§12.6 的 released 说明）。
+        java.nio.file.Path archived = MaidArchive.archiveLost(maidId);
+        if (archived == null) {
+            context.getSource().sendFailure(Component.literal("归档失败，未做任何改动。请检查日志。"));
+            return 0;
+        }
+        if (!state.declareLost()) {
+            context.getSource().sendFailure(Component.literal("状态推进失败，未做任何改动。"));
+            return 0;
+        }
+        MaidCarrierStateStore.write(server, player.getUUID(), state);
+
+        TlmPetCarrier.LOGGER.info("玩家宣告失散：player={}，maidId={}，归档到 {}",
+                player.getName().getString(), maidId, archived);
+        context.getSource().sendSuccess(() -> Component.literal(
+                "已宣告失散。她的数据留在了 " + archived + " 作为纪念，没有删除。")
+                .withStyle(ChatFormatting.GRAY), false);
+        context.getSource().sendSuccess(() -> Component.literal(
+                "你可以重新获得一位女仆了 —— 那会是一个全新的她。"), false);
+        return 1;
     }
 
     // ==================================================================================

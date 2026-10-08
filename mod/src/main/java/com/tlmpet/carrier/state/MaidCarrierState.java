@@ -226,8 +226,14 @@ public final class MaidCarrierState {
      * 玩家就能拿到两张胶卷 —— 也就是两只她（R20）。
      */
     public boolean toFilmHeld() {
-        if (getSoulState() != SoulState.CARRIED) {
-            TlmPetCarrier.LOGGER.error("取胶卷被拒绝：当前状态为 {}，只有 CARRIED 才能取卷", getSoulState());
+        SoulState now = getSoulState();
+        // 两个合法来源，理由不同：
+        //   CARRIED  —— §12.6.1 的"亲手取出胶卷"，是放手仪式的必经一步；
+        //   IN_WORLD —— TLM 自带的相机/胶卷机制：拍照会把她的数据存进物品并 discard 实体。
+        //               这条路径不经过我们，若不接受它，我们的记录会一直以为"她还在世界里"，
+        //               而实际上她已经是一张照片躺在背包里了。
+        if (now != SoulState.CARRIED && now != SoulState.IN_WORLD) {
+            TlmPetCarrier.LOGGER.error("转为 FILM_HELD 被拒绝：当前状态为 {}，只接受 CARRIED 或 IN_WORLD", now);
             return false;
         }
         this.soulState = SoulState.FILM_HELD;

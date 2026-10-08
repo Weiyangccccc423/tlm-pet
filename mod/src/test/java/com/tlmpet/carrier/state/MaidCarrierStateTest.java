@@ -112,14 +112,16 @@ class MaidCarrierStateTest {
     }
 
     @Test
-    @DisplayName("CARRIED 之外的任何状态都不能取胶卷 —— 否则能拿到两张卷")
-    void cannotTakeFilmUnlessCarried() {
-        MaidCarrierState inWorld = MaidCarrierState.fresh(UUID.randomUUID(), WORLD);
-        assertFalse(inWorld.toFilmHeld(), "IN_WORLD 下不应能取胶卷");
-
+    @DisplayName("已有胶卷时不能再取第二张 —— 两张卷就是两只她")
+    void cannotTakeSecondFilm() {
         MaidCarrierState film = filmHeld(UUID.randomUUID());
-        assertFalse(film.toFilmHeld(), "FILM_HELD 下再次取卷必须被拒绝（两张卷＝两只她）");
+        assertFalse(film.toFilmHeld(), "FILM_HELD 下再次取卷必须被拒绝");
         assertEquals(SoulState.FILM_HELD, film.getSoulState());
+
+        // IN_WORLD 下取卷是允许的，因为 TLM 的相机就是这样工作的（见 inWorldCanBecomeFilmHeld）。
+        // 但"一次只能有一张卷"这条仍然由上面的拒绝保证 ——
+        // 而"两张卷能不能变成两只她"由 MaidSingletonGuard 的 DENY_DUPLICATE 兜住。
+        assertTrue(MaidCarrierState.fresh(UUID.randomUUID(), WORLD).toFilmHeld());
     }
 
     @Test
@@ -296,5 +298,116 @@ class MaidCarrierStateTest {
         assertEquals(5, state.getGeneration());
         assertEquals(SoulState.CARRIED, state.getSoulState());
         assertTrue(state.isHer(newcomer));
+    }
+
+    // ==================================================================================
+    // 胶卷：TLM 相机路径
+    // ==================================================================================
+
+    @Test
+    @DisplayName("世界里也能直接转成 FILM_HELD —— TLM 的相机拍照就是这条路径")
+    void inWorldCanBecomeFilmHeld() {
+        MaidCarrierState state = MaidCarrierState.fresh(UUID.randomUUID(), WORLD);
+
+        // 相机拍照会把她的数据存进物品并 discard 实体。这条路径不经过我们的抽离流程，
+        // 若不接受它，记录会一直以为"她还在世界里"，而实际上她已经是一张照片躺在背包里。
+        assertTrue(state.toFilmHeld());
+        assertEquals(SoulState.FILM_HELD, state.getSoulState());
+    }
+
+    @Test
+    @DisplayName("FIRM_HELD 可以回到世界（胶卷还原 / 祭坛重生）")
+    void filmHeldCanReturnToWorld() {
+        MaidCarrierState state = filmHeld(UUID.randomUUID());
+
+        assertTrue(state.toInWorld(WORLD));
+        assertEquals(SoulState.IN_WORLD, state.getSoulState());
+        assertTrue(state.hasMaid());
+    }
+
+    @Test
+    @DisplayName("NONE 不能转成 FILM_HELD：没有她，就没有胶卷")
+    void noneCannotBecomeFilmHeld() {
+        MaidCarrierState state = filmHeld(UUID.randomUUID());
+        assertTrue(state.release());
+        assertEquals(SoulState.NONE, state.getSoulState());
+
+        // 放手之后若还能转 FILM_HELD，仪式就白做了
+        assertFalse(state.toFilmHeld());
+        assertEquals(SoulState.NONE, state.getSoulState());
+    }
+
+    @Test
+    @DisplayName("她已经在世界里时，再来一个自称是她 maidId 的实体必须被拒绝")
+    void duplicateOfHerInWorldIsDenied() {
+        UUID maidId = UUID.randomUUID();
+        MaidCarrierState state = MaidCarrierState.fresh(maidId, WORLD);
+        assertEquals(SoulState.IN_WORLD, state.getSoulState());
+
+        // 这条判定不需要扫描世界里的实体：记录里的 soulState 就是权威。
+        // 因此也不受"她正好在未加载区块里"的影响 —— 那种情况下扫描是找不到她的。
+        // 复制来源：创造模式中键复制胶卷、NBT 复制、或把载荷文件复制一份再导入。
+        assertEquals(MaidSingletonGuard.Decision.DENY_DUPLICATE,
+                MaidSingletonGuard.decide(state, maidId));
+        assertFalse(MaidSingletonGuard.isAllowed(MaidSingletonGuard.Decision.DENY_DUPLICATE));
+    }
+
+    @Test
+    @DisplayName("她在桌宠里 / 在胶卷里时，她本人回来必须放行")
+    void herReturnIsAllowedWhenExpected() {
+        UUID maidId = UUID.randomUUID();
+
+        MaidCarrierState carried = carried(maidId);
+        assertEquals(MaidSingletonGuard.Decision.ALLOW_IS_HER,
+                MaidSingletonGuard.decide(carried, maidId));
+
+        MaidCarrierState film = filmHeld(maidId);
+        assertEquals(MaidSingletonGuard.Decision.ALLOW_IS_HER,
+                MaidSingletonGuard.decide(film, maidId));
+    }
+
+    @Test
+    @DisplayName("放手只接受 FILM_HELD：CARRIED 下不能直接告别")
+    void releaseRequiresFilmFirst() {
+        MaidCarrierState state = carried(UUID.randomUUID());
+
+        // 这个"多一步"就是仪式的重量：必须先亲手把她封进胶卷
+        assertFalse(state.release());
+        assertEquals(SoulState.CARRIED, state.getSoulState());
+        assertFalse(state.isReleased());
+
+        assertTrue(state.toFilmHeld());
+        assertTrue(state.release());
+        assertTrue(state.isReleased());
+    }
+
+    @Test
+    @DisplayName("放手后立墓碑，且墓碑先于 hasMaid 生效（否则旧载荷能把她复活）")
+    void releaseTombstonesBeforeHasMaid() {
+        UUID maidId = UUID.randomUUID();
+        MaidCarrierState state = filmHeld(maidId);
+        assertTrue(state.release());
+
+        // 关键：放手之后 soulState 是 NONE，而 NONE 对"首次获得"是放行的。
+        // 若墓碑判定排在 hasMaid() 之后，玩家只要留着当初抽离出的载荷文件就能把她复活。
+        assertFalse(state.hasMaid());
+        assertTrue(state.isTombstoned(maidId));
+        assertEquals(MaidSingletonGuard.Decision.DENY_RELEASED,
+                MaidSingletonGuard.decide(state, maidId));
+    }
+
+    @Test
+    @DisplayName("宣告失散不立墓碑：日后找回她的数据，让她回来应当被允许")
+    void declareLostDoesNotTombstone() {
+        UUID maidId = UUID.randomUUID();
+        MaidCarrierState state = filmHeld(maidId);
+        assertTrue(state.declareLost());
+
+        assertFalse(state.hasMaid());
+        assertFalse(state.isReleased());
+        assertFalse(state.isTombstoned(maidId));
+        // 与放手形成对照：失散是承认失去，不是主动告别
+        assertEquals(MaidSingletonGuard.Decision.ALLOW_FIRST_ACQUISITION,
+                MaidSingletonGuard.decide(state, maidId));
     }
 }

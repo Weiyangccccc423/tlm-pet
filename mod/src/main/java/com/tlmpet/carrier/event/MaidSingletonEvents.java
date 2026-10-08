@@ -1,18 +1,15 @@
 package com.tlmpet.carrier.event;
 
-import com.tlmpet.carrier.TlmNbtKeys;
 import com.tlmpet.carrier.TlmPetCarrier;
+import com.tlmpet.carrier.policy.MaidAdoption;
 import com.tlmpet.carrier.policy.MaidSingletonGuard;
 import com.tlmpet.carrier.state.MaidCarrierState;
 import com.tlmpet.carrier.state.MaidCarrierStateStore;
+import com.tlmpet.carrier.state.SoulState;
 import com.tlmpet.carrier.util.WorldIds;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
-import net.minecraft.ChatFormatting;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -76,7 +73,7 @@ public final class MaidSingletonEvents {
 
         MinecraftServer server = level.getServer();
         MaidCarrierState current = MaidCarrierStateStore.get(server, ownerId).orElse(null);
-        UUID arrivingMaidId = readMaidId(maid);
+        UUID arrivingMaidId = MaidAdoption.readMaidId(maid);
 
         MaidSingletonGuard.Decision decision = MaidSingletonGuard.decide(current, arrivingMaidId);
 
@@ -85,69 +82,41 @@ public final class MaidSingletonEvents {
             // 若推迟到下一 tick 或交给调用点，同一 tick 内连续生成的第二只读到的
             // 仍是"没有女仆"，规则会被绕过。
             if (decision == MaidSingletonGuard.Decision.ALLOW_FIRST_ACQUISITION) {
-                recordFirstAcquisition(server, ownerId, maid, arrivingMaidId);
+                MaidAdoption.recordFirstAcquisition(server, ownerId, maid, arrivingMaidId);
+                return;
             }
+            // ALLOW_IS_HER：她本来在桌宠里或胶卷里，现在真的落进世界了 ——
+            // 把记录推进到 IN_WORLD。
+            //
+            // 这件事必须在这里做，不能放在 MaidAndItemTransformEvent.ToMaid 里：
+            // 那个事件在 addFreshEntity <b>之前</b>触发，若那时就把状态改成 IN_WORLD，
+            // 紧接着本事件就会看到她"已经在世界里"，把一个合法的还原判成复制品。
+            // 而放在这里，判定用的是"她进来之前"的状态，正是我们想要的语义。
+            promoteToInWorld(server, ownerId, current);
             return;
         }
 
         // ---- 陷阱 ③：以下动作都不碰方块、不加载区块 ----
         event.setCanceled(true);
-        TlmPetCarrier.LOGGER.warn("已拦截第二位女仆：owner={}，来者 maidId={}，玩家当前状态={}",
-                ownerId, arrivingMaidId, current == null ? "(无记录)" : current.getSoulState());
-        notifyOwner(server, ownerId, current);
-    }
-
-    @Nullable
-    private static UUID readMaidId(EntityMaid maid) {
-        CompoundTag persistent = maid.getPersistentData();
-        if (!persistent.hasUUID(TlmNbtKeys.MAID_ID)) {
-            return null;
-        }
-        return persistent.getUUID(TlmNbtKeys.MAID_ID);
+        TlmPetCarrier.LOGGER.warn("已拦截第二位女仆：owner={}，来者 maidId={}，玩家当前状态={}，判定={}",
+                ownerId, arrivingMaidId, current == null ? "(无记录)" : current.getSoulState(), decision);
+        MaidAdoption.notifyDenied(server, ownerId, current);
     }
 
     /**
-     * 首次获得女仆时建立身份记录。
+     * 她落进世界了，把记录从 {@code CARRIED} / {@code FILM_HELD} 推进到 {@code IN_WORLD}。
      * <p>
-     * {@code arrivingMaidId} 非空的情况是"她带着身份来的，但玩家还没有记录" ——
-     * 典型场景是导入一份别人分享的载荷，或玩家删过存档重来。
-     * 此时顺水推舟把她认作"他的她"，而不是另起一个新身份：
-     * 后者会让同一份数据在两边拥有不同的 {@code maidId}，桌宠侧就会出现两个她。
+     * 只在状态确实需要推进时才写盘 —— 这个方法会在她每次<b>新</b>进入世界时被调用，
+     * 而绝大多数情况（野外生成、祭坛新造）走的是首次获得那条分支。
      */
-    private static void recordFirstAcquisition(MinecraftServer server, UUID ownerId,
-                                               EntityMaid maid, @Nullable UUID arrivingMaidId) {
-        UUID maidId = arrivingMaidId != null ? arrivingMaidId : UUID.randomUUID();
-        CompoundTag persistent = maid.getPersistentData();
-        persistent.putUUID(TlmNbtKeys.MAID_ID, maidId);
-        if (!persistent.contains(TlmNbtKeys.GENERATION)) {
-            persistent.putInt(TlmNbtKeys.GENERATION, 1);
-        }
-
-        MaidCarrierState state = MaidCarrierState.fresh(maidId, WorldIds.of(server));
-        MaidCarrierStateStore.write(server, ownerId, state);
-        TlmPetCarrier.LOGGER.info("已登记新的女仆身份：owner={}，maidId={}，世界=「{}」",
-                ownerId, maidId, state.getLastSeenWorldId());
-    }
-
-    /**
-     * 给玩家一句"为什么不行、该怎么办"。
-     * <p>
-     * 通知失败绝不能让拦截失败 —— 拦截是否生效是正确性问题，提示只是体验，
-     * 所以这里吞掉异常并只记日志。
-     */
-    private static void notifyOwner(MinecraftServer server, UUID ownerId, @Nullable MaidCarrierState current) {
-        ServerPlayer player = server.getPlayerList().getPlayer(ownerId);
-        if (player == null) {
+    private static void promoteToInWorld(MinecraftServer server, UUID ownerId,
+                                         @Nullable MaidCarrierState current) {
+        if (current == null || current.getSoulState() == SoulState.IN_WORLD) {
             return;
         }
-        try {
-            player.displayClientMessage(
-                    Component.literal(MaidSingletonGuard.denyMessage(current))
-                            .withStyle(ChatFormatting.LIGHT_PURPLE),
-                    false);
-        } catch (RuntimeException e) {
-            TlmPetCarrier.LOGGER.error("发送女仆唯一性提示失败：owner={}", ownerId, e);
+        if (current.toInWorld(WorldIds.of(server))) {
+            MaidCarrierStateStore.write(server, ownerId, current);
+            TlmPetCarrier.LOGGER.info("她已回到世界：owner={}，maidId={}", ownerId, current.getMaidId());
         }
     }
-
 }

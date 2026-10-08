@@ -58,6 +58,18 @@ public final class MaidInjector {
         }
 
         MinecraftServer server = level.getServer();
+
+        // 「放手不可撤销」的磁盘侧判据（§12.6、风险 R27）。
+        // 必须排在身份记录判定之前：放手之后记录里 soulState 是 NONE，而 NONE 对首次获得
+        // 是放行的 —— 只靠记录，玩家把当初抽离出的载荷文件留着就能把她复活，
+        // "不可撤销"和"放手不是刷材料的手段"（§14.5 原则 3）就都成了空话。
+        // 用归档目录的存在性而非记录里的 released 标记，是为了不受"每人一个槽位、
+        // 因此只存得下一块墓碑"的限制。
+        if (MaidArchive.isReleased(maidId)) {
+            return Result.failure("她已经正式告别过了。祭坛上的告别不可撤销 —— 她的数据仍在 "
+                    + "config/tlm_pet/maids/_released/ 里作为纪念，但不会再回到你身边。");
+        }
+
         MaidCarrierState current = MaidCarrierStateStore.get(server, player.getUUID()).orElse(null);
 
         // 单女仆规则的前置检查。这里做的是<b>体验</b>而非正确性：
