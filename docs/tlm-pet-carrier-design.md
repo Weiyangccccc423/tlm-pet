@@ -575,8 +575,25 @@ history.getDeque().descendingIterator().forEachRemaining(chatList::add);
 （`MaidEventTrigger` / `AltarCraftTrigger` / `EntityMaid` / `ItemFilm` / `MaidNumCapability`）
 在依赖 jar 中**已逐一确认存在**。
 
-**尚未完成的一步**：`gradlew.bat runClient` 进游戏，确认日志里可见扩展类被实例化
-（`AnnotatedInstanceUtil` 经 `ModFileScanData` 自动发现，无需手动注册）。
+**验收：已通过。** `gradlew.bat runClient` 启动成功，游戏自身日志 `mod/run/logs/latest.log` 给出：
+
+```
+[13:13:22.875] [modloading-worker-0/INFO] [tlm_pet/]: Touhou Little Maid: Bond 正在初始化
+[13:13:27.867] [Render thread/INFO] [...]: Enabled Gametest Namespaces: [tlm_pet]
+[13:13:30.804] [Render thread/INFO] [tlm_pet/]: 已挂载到 Touhou Little Maid 的扩展点
+```
+
+第三行即 `TlmCompat` 构造函数被调用的证据 —— 确认 `@LittleMaidExtension` 经 `AnnotatedInstanceUtil`
+扫描 `ModFileScanData` **自动发现，无需任何手动注册**。同时确认：
+
+- 运行时解析到的 TLM 版本为 `1.5.3-forge+mc1.20.1`（与设计文档依据的源码 checkout 一致）；
+- `Found 5 mod requirements (5 mandatory, 0 optional)`、`0 missing` —— `mods.toml` 的 `AFTER` 依赖成立；
+- `Registering mixin config: tlm_pet.mixins.json`、`Preparing tlm_pet.mixins.json (0)` —— mixin 通道就绪（当前 0 个）；
+- TLM 自身 23 个 mixin 全部 prepared，游戏正常进入主菜单。
+
+> 注：开发环境下会有 `Reference map 'tlm_pet.refmap.json' ... could not be read` 警告，
+> 这是**预期的** —— refmap 只在 `build` 产物里生成；`runClient` 直接跑 classes 目录时读不到。
+> 该警告不影响开发环境，但**发布前必须确认 refmap 已随 jar 产出**（否则 §19 的私有方法 mixin 会静默失效）。
 
 
 ### Phase 1：抽离 / 注入政策层（2–4 天）

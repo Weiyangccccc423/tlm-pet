@@ -132,6 +132,28 @@ dir "$env:USERPROFILE\.gradle\caches\modules-2\files-2.1\net.minecraftforge"
 dir "$env:USERPROFILE\.gradle\caches\forge_gradle\minecraft_user_repo\net\minecraftforge\forge"
 ```
 
+### 4.1 首次 `runClient`：资源下载需要重跑
+
+**症状**：第一次 `gradlew.bat runClient` 在 `downloadAssets` 阶段失败：
+
+```
+Failed to get asset: minecraft/sounds/item/goat_horn/call2.ogg
+Failed to get asset: minecraft/sounds/mob/dolphin/jump1.ogg
+...
+Some assets failed to download or validate, try running the task again.
+BUILD FAILED in 7m 14s
+```
+
+**同样重跑即可。** 实测第一次 1659 个资源里只有 **6 个**超时失败；`downloadAssets` 是增量的，
+第二次运行只补这 6 个，然后直接进游戏。
+
+资源站 `resources.download.minecraft.net` 实测只有 **29–40 KB/s**（走代理也没快多少），
+但资源都是几 KB 的 `.ogg`，所以耗时主要是并发请求累积，不是带宽瓶颈。
+
+顺带一提：`DownloadAssets` 走的是 `FileUtils.copyURLToFile` + 原生 `HttpURLConnection`，
+它只认 JVM 的 `http.proxyHost` / `https.proxyHost` **系统属性** —— 而 `~/.gradle/gradle.properties`
+里的 `systemProp.*` 正是往 Gradle JVM 注入这些属性，所以代理配置对它同样有效。
+
 ## 5. 编码注意事项
 
 JDK 17 在中文 Windows 上 `file.encoding` 仍默认为 **GBK**（JDK 18 才改为 UTF-8）。
