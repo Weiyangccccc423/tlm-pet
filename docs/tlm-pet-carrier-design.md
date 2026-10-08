@@ -810,6 +810,7 @@ history.getDeque().descendingIterator().forEachRemaining(chatList::add);
 | **R22** | 成就奖励材料进入交易/复制流通 → 迎回能力扩散到未完成成就的玩家；或材料过于稀有导致普通玩家拿不到 | 中 | ① 迎回之铃**不是硬门槛**（GUI 路径始终可用，§14.5 原则 1），扩散不构成功能性破坏；② 关键材料（羁绊之核）应设计为**不可交易**或与 `maidId` 绑定 |
 | **R23** | 误把 `MaidWorldData` 当作女仆花名册 → 注入时调用 `addInfo`，而她真正卸载时 `onRemovedFromWorld` 又登记一次 → 狐之卷 / 仆人铃 / 喇叭列表出现**重复项** | 中 | **已在实现阶段修正**：注入时完全不碰该索引，抽离时改调 `removeInfo`（见 §4.2.1）。验收时专门确认"卸载后列表里只有一条" |
 | **R24** | 上游 `MaidKillRecordManager` 写入端用 `KILL_RECORD`、读取端用 `TOTAL_COUNT`，`"TotalCount"` **从未被写入** → `totalCount` 每次读档归零 → `challenge/kill_100` 几乎无法达成 | 中（上游缺陷，非本功能引入） | 抽离时**补偿**补写 `TotalCount`（见 §4.2.1），使注入后数值正确；彻底修复需 mixin 或上游修复。验收时把该成就记为已知上游问题，不要误判为本功能的 bug |
+| **R25** | 启动日志出现 `Couldn't parse element loot_tables:touhou_little_maid:grant_book_on_first_join`，根因是该表引用 `patchouli:guide_book` 而 Patchouli 未安装 | 低（上游缺陷，非本功能引入；后果仅"首次进服送指南书"失效） | 无需处理。任何不含 Patchouli 的整合包都会出现这条报错。记录下来是为了避免后续验收时把它误判成本功能引入的问题 |
 
 ---
 
