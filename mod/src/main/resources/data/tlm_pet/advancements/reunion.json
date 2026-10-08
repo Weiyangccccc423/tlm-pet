@@ -1,0 +1,29 @@
+{
+  "parent": "tlm_pet:root",
+  "criteria": {
+    "tlm_pet": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "advancements.tlm_pet.reunion.description"
+    },
+    "frame": "goal",
+    "hidden": false,
+    "icon": {
+      "item": "touhou_little_maid:servant_bell"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "advancements.tlm_pet.reunion.title"
+    }
+  },
+  "requirements": [
+    [
+      "tlm_pet"
+    ]
+  ],
+  "sends_telemetry_event": false
+}

@@ -1,0 +1,29 @@
+{
+  "criteria": {
+    "tlm_pet": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": false,
+    "background": "touhou_little_maid:textures/advancements/backgrounds/stone.png",
+    "description": {
+      "translate": "advancements.tlm_pet.root.description"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "item": "tlm_pet:recall_bell"
+    },
+    "show_toast": false,
+    "title": {
+      "translate": "advancements.tlm_pet.root.title"
+    }
+  },
+  "requirements": [
+    [
+      "tlm_pet"
+    ]
+  ],
+  "sends_telemetry_event": false
+}

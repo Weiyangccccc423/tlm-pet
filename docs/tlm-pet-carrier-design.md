@@ -46,7 +46,7 @@
 | **D6** | 抽离语义为**"收走"**而非"复制" | 与叙事一致，且天然防复制 |
 | **D7** | 每位玩家**绝对唯一**一个女仆身份（singleton） | 她是"那一个她"。跨存档、跨世界恒为同一身份；**不存在"第二只"，也不存在自动重置** |
 | **D8** | **禁止在新世界收服新女仆** | 防"串味"：若新世界能再驯服一只，就会出现两个女仆身份，D7 与 D3（羁绊完整性）同时被破坏 |
-| **D9** | 本模组**最小接管**原版对应成就（5 个，见 §13.3） | 玩法已变（一生一只、跨世界重逢），这几个成就语义脱节或被结构性破坏，由我们的成就树取代；`challenge/*` 与 `favorability/*` 保持不动 |
+| **D9** | 本模组**最小接管**原版对应成就（4 个，见 §13.3） | 玩法已变（一生一只、跨世界重逢），这几个成就语义脱节或被结构性破坏，由我们的成就树取代；`challenge/*` 与 `favorability/*` 保持不动。**实施期修正：原定的第 5 个（结构女仆）在发布版里根本不存在，见 §13.3** |
 | **D10** | 唯一性**只能**通过「**放手仪式**」重置（§12.6） | 把"不可逆"转化为有叙事重量的主动抉择。**修订：以她的胶卷举行，不要求她在场** —— 这样玩家在任何世界都能告别，顺带解决 R17 的锁死风险 |
 | **D11** | 接受引入 **mixin** | 创造模式绕过（D7 必需，§12.3）与成就接管方案 A（§13.4）都依赖 mixin，附属模组需配置 MixinGradle |
 | **D12** | 成就附加**实质奖励**，用于打造**跨世界召回物品**（§14） | 让成就从收集品变成玩法阶梯；同时把"世界内召回"留给既有 `ItemServantBell`，避免重复实现 |
@@ -283,7 +283,7 @@ KillRecord: {
 **我们的对策**：`MaidCarrierPolicy.normalizeKillRecord` 在抽离时向该复合标签**补写一份 `TotalCount`**，使注入后 `readAdditionalSaveData` 能取回正确值。注意这是**补偿而非修复**——下一次原版存档时 `addAdditionalSaveData` 仍只写 `KILL_RECORD` 键，数值会在再下一次加载时再次丢失。彻底修复需要 mixin 或上游改动，已记入 §11 风险登记。
 
 > 该缺陷**不影响** `challenge/kill_slime_300`：`Slime` 键两侧一致。
-> 该成就也**不在** D9 要接管的 5 个之列（§13.3），所以它属于"原版未接管成就应当正常工作"的范畴（§13.4 验收项），需要在验收时单独记录为已知的上游问题。
+> 该成就也**不在** D9 要接管的 4 个之列（§13.3），所以它属于"原版未接管成就应当正常工作"的范畴（§13.4 验收项），需要在验收时单独记录为已知的上游问题。
 
 
 ### 4.3 为什么经验必须剥离
@@ -800,8 +800,8 @@ history.getDeque().descendingIterator().forEachRemaining(chatList::add);
 | **R12** | **单女仆规则若只依赖 `MaidNumCapability` 必然被绕过** —— 共 4 条获取路径完全无数量检查（祭坛 `spawn_box` / 祭坛 `reborn_maid` / 照片 / 胶卷，见 §12.2） | **高**（D7/D8 被直接破坏） | 使用我们自己的 `MaidCarrierState` 作为权威记录（§12.4）+ `EntityJoinLevelEvent` 兜底拦截（§12.5） |
 | **R13** | **创造模式绕过** —— `cap.canAdd() \|\| player.isCreative()` 写在 TLM 方法体内（`EntityMaid.java:679`、`ItemSmartSlab.java:153`），事件无法覆盖 | 中 | 需 mixin 改写条件（§12.3）；或明确接受创造模式不受限 |
 | **R14** | 成就接管方案 A 需要 mixin **内部类** `MaidEventTrigger`（非 `api` 包） | 中 | 上游变动时需同步维护；备选方案 B（事件 + revoke）；落地前先做 §13.5 的验证 |
-| **R15** | `challenge/tamed_maid_from_structure` 在 D7/D8 下**永久不可获得**（结构性互斥） | 中（玩家会认为"成就坏了"） | **已解决**：纳入最小接管清单（§13.3），由 `tlm_pet:found_her` 替代其语义 |
-| **R16** | 被接管的 5 个原版成就**仍显示在成就 GUI 中**，但永远拿不到 | 中（观感问题） | 方案 A 无法隐藏它们。若要彻底隐藏需方案 C（资源覆盖，优先级未实测）。**建议先接受，观察玩家反馈**再决定是否追加成本 |
+| **R15** | ~~`challenge/tamed_maid_from_structure` 在 D7/D8 下永久不可获得~~ → **该成就根本不存在** | ~~中~~ **无** | **已消解（实施期核对）**：剖开 1.5.3 发布 jar 确认 `challenge/` 只有 9 个成就，不含它。`EntityMaid.java:697` 触发的 `tamed_maid_from_structure` 是一个**没人监听的孤儿事件**（datagen 里 `ChallengeAdvancement.java:79-81` 会生成 `challenge/tamed_maid_in_pillager_outpost`，但该文件从未进入发布 jar）。我们顺势用 `tlm_pet:found_her` 补上这一格 —— 因为无物可取消，这条规则**不返回"已接管"** |
+| **R16** | 被接管的 4 个原版成就**仍显示在成就 GUI 中**，但永远拿不到 | 中（观感问题） | 方案 A 无法隐藏它们。若要彻底隐藏需方案 C（资源覆盖，优先级未实测）。**建议先接受，观察玩家反馈**再决定是否追加成本 |
 | **R17** | 桌宠数据被误删 / 玩家换机 → 女仆"魂"丢失，在绝对唯一规则下玩家**永久无女仆** | **高** | **已设计完整缓解**：① §12.7「宣告失散」兜底流程；② `/tlm-pet reset <player>` OP 逃生口；③ 抽离前自动调用 `MaidBackupsManager.save()` 留档；④ 桌宠侧快照不滚动删除（§8.1）；⑤ **§12.6.3 胶卷不需要她在场 → 放手始终可行**，这是本次修订的最大收益 |
 | **R18** | 「放手仪式」的祭品定价失当 —— 太便宜则重置失去重量，太贵（如龙蛋）则玩家可能永远无法重新开始 | 中 | 需实测手感；建议从下界之星起步，并把祭品做成可配置项 |
 | **R19** | mixin 注入 `EntityMaid.tameMaid` / `ItemSmartSlab.spawnNewMaid` 等 **private** 方法，混淆映射变动会导致注入失败 | 中 | 在 `refmap` 生成后核对描述符；注入失败必须**失败可见**（启动时日志告警），否则单女仆规则会**静默失效** —— 这是本方案最危险的一类失败 |
@@ -1067,13 +1067,13 @@ R17 的残余场景：`soulState == CARRIED` 或 `FILM_HELD`（身份记录说"�
 
 ### 13.3 受新规则影响的原版成就与接管范围（已定：最小接管）
 
-**已决定（D9）：最小接管，共 5 个。** 处置方式如下表。
+**已决定（D9）：最小接管，共 4 个。** 处置方式如下表。
 
 | 原版成就 | 所在分组 | 触发条件 | 在 D7/D8 下的问题 | 处置 |
 |---|---|---|---|---|
 | `spawn_maid` | `base/` | `altar_craft` 且 `recipe_id = touhou_little_maid:altar/spawn_box`（`base/spawn_maid.json:4-9`） | **直接与 D8 冲突** —— 新世界必须禁止再造女仆，此成就此后不可获得 | 🔴 **接管** |
 | `tamed_maid` | `base/` | `event = tamed_maid` | 变为**一生一次**的必然事件，失去渐进性 | 🔴 **接管** |
-| `tamed_maid_from_structure` | `challenge/` | `event = tamed_maid_from_structure` | **永久不可获得（结构性互斥）**：女仆主路径是祭坛 `spawn_box`，产出的不是结构女仆；而已驯服一只后无法再驯服第二只 | 🔴 **接管** |
+| ~~`challenge/tamed_maid_from_structure`~~ | ~~`challenge/`~~ | — | **【实施期修正】该成就从来不存在。** `TriggerType.TAMED_MAID_FROM_STRUCTURE`（`TriggerType.java:62`）确实在 `EntityMaid.java:697` 被触发，但发布版里没有任何成就 JSON 监听它 —— 直接剖开 1.5.3 的 jar 核对：`challenge/` 下只有 9 个成就，不含它。`ChallengeAdvancement.java:79-81` 会生成 `challenge/tamed_maid_in_pillager_outpost`，但那个文件从未进入发布 jar（datagen 输出与代码不同步，`src/generated/resources` 里也没有） | ⚪ **无物可接管**；我们顺势补上 `tlm_pet:found_her` |
 | `reborn_maid`、`shrine_reborn_maid` | `maid_base/` | 重生女仆 | 语义应被「**跨世界重逢**」取代 —— 恰是本模组的核心叙事 | 🔴 **接管** |
 | `photo_maid` | `maid_base/` | 给女仆拍照 | 仍可获得，语义变为「给她拍第一张照片」 | ⚪ 保留 |
 | `build_altar`、`craft_gohei`、`craft_chair`、`pickup_power_point`、`kill_maid_fairy`、`change_maid_model/sound`、`change_chair_model` | `base/`（其余 8 个） | 建造 / 合成 / 交互类 | 不受影响 | ⚪ 保留 |
@@ -1081,24 +1081,27 @@ R17 的残余场景：`soulState == CARRIED` 或 `FILM_HELD`（身份记录说"�
 | `favorability/` 全部 **8** 个 | `favorability/` | 好感度与娱乐 | 不受影响，且因跨世界保留而**更有意义** | ⚪ 保留 |
 | `maid_base/` 其余 **23** 个 | `maid_base/` | 任务 / 背包 / 棋局等 | 不受影响 | ⚪ 保留 |
 
-> ⚠️ **一处需要留意的分类细节**：`tamed_maid_from_structure` 虽然在 `challenge/` 目录下，但它属于"因玩法改变而失效"的一类，因此**在本方案的接管清单内**。也就是说 `challenge/` 下 9 个成就中有 1 个被接管、8 个保留。
-
-**接管后的替代设计（5 个）**：把「获得女仆」这件事从"资源流程"改写为"关系流程" ——
-`spawn_box` 的成就语义从"造出了一只女仆"变为"第一次把她带到身边"；`tamed_maid` 从"驯服"变为"她选择了你"（一生一次）；`tamed_maid_from_structure` 的语义本身不再成立，建议改造为"在世界结构中与她相遇"（可重新定义触发条件，不再要求"驯服结构女仆"）；两个 `reborn_maid` 合并为「跨世界重逢」。
-
-**其中 `challenge/tamed_maid_from_structure` 是被新规则真正打破的成就**，必须在文档层面记录，并决定处置方式（由我们的成就替代 / 或放宽规则允许结构女仆例外）。
+> ⚠️ **两处实施期修正（已按发布 jar 核对，不是按仓库源码）**
+>
+> 1. **`tamed_maid_from_structure` 不是 `challenge/` 的成就，而是一个孤儿事件。** 早期版本的表把它列为"被接管的 challenge 成就之一"，那是对 `TriggerType` 常量名与成就文件名的混淆。实际发布 jar 的成就总数为 **54**：`base 10 / challenge 9 / favorability 8 / maid_base 25`，另加 `main/resources` 里 2 个非分支成就。因此 `challenge/` 的 9 个**全部保留**，D9 的接管数从 5 降为 4。
+> 2. **"成就文件名"与"它匹配的事件字符串"不是一回事。** 例如事件是 `tamed_maid_from_structure`，而对应的成就（如果生成过）叫 `tamed_maid_in_pillager_outpost`。写拦截表时必须以**触发器 + 判别键 + 判别值**为准，不能按文件名推。
+>
+> 关于我们的替代成就：`spawn_box` → `tlm_pet:first_maid`（第一次把她带到身边）；`tamed_maid` → `tlm_pet:she_chose_you`（她选择了你，一生一次）；两个 `reborn_maid` → `tlm_pet:reunion`（跨世界重逢，两条路径都指向它，重复授予是幂等的）。另加 `tlm_pet:found_her`（在世界结构中与她相遇）补上上游漏掉的那一格 —— 它**不取消**任何东西，因为无物可取消。
+>
+> 注意 `found_her` 与 `first_maid` 是两个不同的成就：前者是"在结构里遇见她"，后者是"第一次把她带到身边"。早期草案把两者混用过同一个 id。
 
 ### 13.4 覆盖机制的精确接管点（已核实）
 
-把 §13.3 的 5 个成就逐一对照 JSON 后，得到**精确的拦截清单** —— 只需 mixin **两个**触发器类：
+把 §13.3 的 4 个成就逐一对照 JSON 后，得到**精确的拦截清单** —— 只需 mixin **两个**触发器类：
 
 | 被接管成就 | 触发器类 | 判别键 | 判别值 |
 |---|---|---|---|
 | `base/spawn_maid` | `AltarCraftTrigger` | `recipe_id` | `touhou_little_maid:altar/spawn_box` |
 | `maid_base/reborn_maid` | `AltarCraftTrigger` | `recipe_id` | `touhou_little_maid:altar/reborn_maid` |
 | `base/tamed_maid` | `MaidEventTrigger` | `event` | `tamed_maid` |
-| `challenge/tamed_maid_from_structure` | `MaidEventTrigger` | `event` | `tamed_maid_from_structure` |
 | `maid_base/shrine_reborn_maid` | `MaidEventTrigger` | `event` | `shrine_reborn_maid` |
+
+> 另有第 5 条**不取消**的规则：`MaidEventTrigger` + `event = tamed_maid_from_structure` → 只授予 `tlm_pet:found_her`，不返回"已接管"。它存在的意义是补上游的缺，而不是覆盖。
 
 > ⚠️ **注意一个容易搞错的点**：`reborn_maid` 走的**不是** `MAID_EVENT`，而是 `AltarCraftTrigger`（`maid_base/reborn_maid.json:4-9` 的 `trigger` 是 `touhou_little_maid:altar/altar_craft`）。只有 `shrine_reborn_maid` 才是 `MAID_EVENT`（`shrine_reborn_maid.json:4-9`）。若只 mixin `MaidEventTrigger` 会漏掉 `reborn_maid`。
 
@@ -1109,13 +1112,39 @@ R17 的残余场景：`soulState == CARRIED` 或 `FILM_HELD`（身份记录说"�
 | `MaidEventTrigger.trigger` | `public void trigger(ServerPlayer, String eventName)` | `advancements/maid/MaidEventTrigger.java:28` |
 | `AltarCraftTrigger.trigger` | `public void trigger(ServerPlayer, ResourceLocation recipeId)` | `advancements/altar/AltarCraftTrigger.java:24` |
 
-注入方式：`@Inject(method = "trigger", at = @At("HEAD"), cancellable = true)` —— 命中清单则 `ci.cancel()`（阻止原版成就），随后调用我们自己的触发器授予替代成就。
+注入方式（**已实施并验证**）：
+
+```java
+@Inject(
+        method = "trigger(Lnet/minecraft/server/level/ServerPlayer;Ljava/lang/String;)V",
+        at = @At("HEAD"),
+        cancellable = true,
+        remap = false
+)
+```
+
+命中清单则 `ci.cancel()`（阻止原版成就），随后授予我们的替代成就。
+
+> ⚠️ **`remap = false` 不是可选项。** 目标是 TLM 自己的方法，不在 Minecraft 的混淆映射表里；
+> 不加会直接**编译失败**：`Unable to locate obfuscation mapping for @Inject target trigger`（mixin AP 把它当错误而不是警告）。
+> 之所以安全：模组方法名永不被混淆；描述符里的 `net.minecraft.*` 是**官方类名**，而 Forge 1.20.1
+> 生产环境同样使用官方类名 + SRG 成员名，所以这一处也不需要重映射。
+> 用**完整方法描述符**而非裸方法名 `"trigger"`：`SimpleCriterionTrigger` 自己也有一个 `trigger`，
+> 裸名字将来可能因为上游加重载而指错目标。
+>
+> 附带结论：因为 `remap = false` 让两个注入都不需要重映射，生成的 `tlm_pet.refmap.json` 是
+> `{"mappings":{},"data":{}}` —— **空 refmap 是预期结果，不是配置错误**。
+
+关于我们自己的成就如何被授予：它们用 `minecraft:impossible` 作为 criterion 的 `trigger`。
+已核实 `ImpossibleTrigger` **直接实现** `CriterionTrigger`（不继承 `SimpleCriterionTrigger`），
+其 `createInstance(JsonObject, DeserializationContext)` 忽略 JSON 内容，因此 `conditions` 可以省略，
+且它永不自行触发 —— 语义上正好是"只能被外力授予"。这样我们不必注册自定义 `CriterionTrigger`。
 
 ### 13.5 四方案对比与选型（已定）
 
 | 方案 | 做法 | 优点 | 缺点 |
 |---|---|---|---|
-| **A. 触发器 mixin**（**已采用**，D11） | `@Inject` 到上表两个 `trigger` 方法，命中则取消并转发到我们自己的触发器 | 确定性最高；无 toast 闪烁；**只需 2 个 mixin 目标、5 条判别规则** | 依赖内部类（非 `api` 包），随上游变动需维护 |
+| **A. 触发器 mixin**（**已采用**，D11） | `@Inject` 到上表两个 `trigger` 方法，命中则取消并转发到我们自己的触发器 | 确定性最高；无 toast 闪烁；**只需 2 个 mixin 目标、4 条判别规则** | 依赖内部类（非 `api` 包），随上游变动需维护 |
 | **B. 事件 + 撤销** | 监听 `AdvancementProgressEvent`(`GRANT`)，对 TLM 成就 `revoke` 后授予我们的 | 零 mixin | 事件**不可取消**，toast 可能已发出 → 闪烁；原成就永久锁定但仍在 GUI 中**可见**，UX 差 |
 | **C. 资源覆盖** | 我们的 JSON 放在相同路径 `data/touhou_little_maid/advancements/...` | 零代码；GUI 与行为同时被替换 | **mod 之间的资源覆盖优先级未实测**，依赖加载顺序，脆弱 |
 | **D. 只新增不覆盖** | 原版保持不变，我们另建成就树 | 零风险 | 不满足 D9 |
@@ -1124,35 +1153,58 @@ R17 的残余场景：`soulState == CARRIED` 或 `FILM_HELD`（身份记录说"�
 
 **选 A 的一个附带好处**：因为拦截发生在触发器层，原版成就**从未被授予**，所以不存在"授予后又撤销"的闪烁，也不会污染 `sends_telemetry_event`（该字段在这些 JSON 中均为 `true`）。
 
-### 13.6 落地前必须先做的验证（半天内可完成）
+### 13.6 落地前必须先做的验证 —— **已执行，结论如下**
 
-因为 §13.4 已把拦截点收敛到 2 个类 / 5 条规则，验证成本很低：
+因为 §13.4 已把拦截点收敛到 2 个类 / 4 条规则，验证成本很低。
 
-1. **验证 mixin 可行性**：写两个最小 mixin 分别注入 `MaidEventTrigger.trigger` 与 `AltarCraftTrigger.trigger`，在游戏里
-   - 驯服一只女仆 → 确认日志打印出 `event = tamed_maid`；
-   - 在祭坛合成一次 `spawn_box` → 确认日志打印出 `recipe_id = touhou_little_maid:altar/spawn_box`。
-   这是整个 D9 的技术前提。
-2. **验证 `ci.cancel()` 真的阻止了成就**：在 mixin 里对 `tamed_maid` 无条件 `cancel()`，确认驯服后**没有**获得 `base/tamed_maid` 成就、也没有 toast。
-3. **验证创造模式 mixin**（§12.3）：注入 `EntityMaid.tameMaid` 的 `player.isCreative()` 表达式，确认创造模式下第二只女仆被拒绝。
-4. **可选验证 C 的优先级**：若想省掉 mixin，可在附属模组放一个同路径的 `base/tamed_maid.json`（改成不可达条件），实测哪个生效。
+**验证 1、2：mixin 可行性 + 注入落地 —— ✅ 已完成。**
 
-### 13.7 我们的成就树（建议结构）
+`gradlew runServer` 的控制台（stdout）中出现：
 
 ```
-tlm_pet:root
-├── tlm_pet:first_carry        # 第一次把她收进桌宠
-├── tlm_pet:first_reunion      # 在新世界迎回她（接管原 reborn_maid / shrine_reborn_maid 的语义）
-├── tlm_pet:found_her          # 在世界结构中与她相遇（接管原 tamed_maid_from_structure 的语义）
-├── tlm_pet:three_worlds       # 她陪你走过 3 个世界（读 lineage 长度）
-├── tlm_pet:memory_keeper      # 桌宠侧知识库累积超过 N 条回忆
-├── tlm_pet:bond_preserved     # 跨世界后好感度等级保持 3 级
-├── tlm_pet:carry_no_item      # 在"不带任何物品"的前提下完成一次跨越（教学性质）
-└── tlm_pet:let_go             # 放手仪式：主动与她告别（D10，叙事上最重的一个）
+[14:52:52] [modloading-worker-0/DEBUG] [mixin/]: Mixing advancement.AltarCraftTriggerMixin
+           from tlm_pet.mixins.json into com.github.tartaricacid.touhoulittlemaid.advancements.altar.AltarCraftTrigger
+[14:52:52] [modloading-worker-0/DEBUG] [mixin/]: Mixing advancement.MaidEventTriggerMixin
+           from tlm_pet.mixins.json into com.github.tartaricacid.touhoulittlemaid.advancements.maid.MaidEventTrigger
 ```
 
-触发器由我们自己经 `CriteriaTriggers.register`（`init/InitTrigger.java:18-22` 的同款写法，Forge 的 `CriteriaTriggers.register` 是 public）注册。
+服务器随后 `Done (9.312s)!`，成就加载 `Loaded 1335 advancements`，无任何注入错误。
+由于 `tlm_pet.mixins.json` 是 `required: true` 且 `defaultRequire: 1`，**"启动成功"本身就等价于"注入数 ≥ 1 已满足"** —— 注入失败会以 `MixinApplyError` 直接崩溃，而不是静默降级（这正是 R19 想要的行为）。
 
-**成就树的分组建议**：把被接管的 5 个原版成就**放在我们自己的命名空间下重新实现**，而不是试图修改 TLM 的文件。即：原版那 5 个成就永远不再被授予（mixin 拦截），玩家收集的是 `tlm_pet:*`。这样与上游的耦合只剩 2 个 mixin 点，而不是一份 JSON 副本。
+> 📌 **一条会反复踩的坑**：`run/logs/latest.log` 里 **0 条 DEBUG** —— Forge 的日志配置只把 DEBUG 写到控制台。
+> 因此 mixin 的应用记录**必须去 stdout 找**（在 Gradle 场景下即 `runServer` 的进程输出），
+> 只看 `latest.log` 会误判成"mixin 没生效"。同理，只跑专用服务器**不会**加载模型/贴图，
+> 客户端的资源问题在服务端日志里一律看不到。
+
+**验证 3：`ci.cancel()` 真的阻止了成就 —— ⏳ 待游戏内动作确认**（需驯服 / 祭坛合成，属于人工验收范围）。代码路径已就位：命中清单则 `ci.cancel()`，随后授予替代成就。
+
+**验证 4：创造模式 mixin（§12.3）—— ⏳ 未实施**（属于后续阶段；当前唯一性由 §12.5 的兜底拦截保证，创造模式同样会被拦下）。
+
+**验证 5：方案 C 的资源覆盖优先级 —— 未做**，因为方案 A 已验证可行，不再需要。
+
+### 13.7 我们的成就树（**已实施**）
+
+实际落地的 11 个成就。带 🎁 的有物品奖励（掉落表见 §14.4）。
+
+```
+tlm_pet:root                       # 最珍贵的行囊（页签根，minecraft:tick 立即授予，无 toast）
+├── tlm_pet:first_maid             # 第一次把她带到身边      ← 接管 base/spawn_maid
+│   └── tlm_pet:she_chose_you      # 她选择了你（一生一次）  ← 接管 base/tamed_maid
+├── tlm_pet:reunion                # 跨世界重逢              ← 接管 reborn_maid + shrine_reborn_maid
+│   └── tlm_pet:three_worlds    🎁 # 三途之钥
+├── tlm_pet:found_her           🎁 # 在世界结构中与她相遇（寻踪符×2，补上游缺口）
+├── tlm_pet:first_carry         🎁 # 第一次抽离（羁绊之核）
+│   └── tlm_pet:first_reunion   🎁 # 第一次迎回（归乡灵玉）
+│       ├── tlm_pet:memory_keeper  🎁 # 回忆碎片
+│       └── tlm_pet:bond_preserved 🎁 # 不灭之绊
+└── tlm_pet:let_go              🎁 # 彼岸花开（放手仪式，唯一产物是纯纪念物）
+```
+
+**与早期草案的差异**：草案里有 `tlm_pet:carry_no_item`（"不带任何物品完成一次跨越"）。实施时**去掉了**它 —— 我们的物品策略（D4）是"抽离不携带任何物品"，也就是**每一次跨越都必然满足**这个条件，它不构成一个可追求的目标，只是一句必然为真的陈述。改成成就会变成一个白送的空成就。
+
+**实现方式与草案不同的一点**：草案说"触发器由我们自己经 `CriteriaTriggers.register` 注册"，实际**没有注册任何自定义触发器**。这些成就的 criterion 一律用 `minecraft:impossible`（它直接实现 `CriterionTrigger`、`createInstance` 忽略 JSON，因此 `conditions` 可省略，且永不自行触发），只由 `TlmPetAdvancements.award` 在代码里显式授予。这样不必新增注册表项，语义上"只能被外力授予"也正好吻合。代价是：**授予点必须在代码里显式写全**，漏写不会报错、只会安静地少一个成就 —— 所以 `award` 在找不到成就 ID 时记 `ERROR`。
+
+**成就树的分组**：被接管的 4 个原版成就**在我们自己的命名空间下重新实现**，不修改 TLM 的文件。原版那 4 个此后永不被授予（mixin 拦截），玩家收集的是 `tlm_pet:*`。与上游的耦合因此只剩 2 个 mixin 点，而不是一份 JSON 副本。
 
 ---
 
@@ -1169,7 +1221,9 @@ tlm_pet:root
 | 成就引用掉落表 | `base/spawn_maid.json:33-37` 的 `"rewards": {"loot": ["touhou_little_maid:advancement/cake"]}` |
 | 已有奖励的成就 | `base/spawn_maid`、`base/craft_gohei`、`base/build_altar`、`challenge/kill_100`、`challenge/kill_slime_300`、`challenge/all_netherite_equipment`、`favorability/maid_sit_joy`（共 7 个） |
 
-我们的附属模组照做即可，掉落表用 `tlm_pet:advancement/<name>` 命名空间。
+我们的附属模组照做即可。**实际落地的命名是复数 `advancements`**：文件在 `data/tlm_pet/loot_tables/advancements/<成就名>.json`，成就里引用为 `"loot": ["tlm_pet:advancements/<成就名>"]`（每个成就一个同名的掉落表，不共用）。掉落表类型是 `minecraft:advancement_reward`，多数量用 `minecraft:set_count` 函数。
+
+> 核对结果：启动日志里 7 个掉落表全部解析成功。日志中唯一一条掉落表报错是 **`touhou_little_maid:grant_book_on_first_join`**（`Expected name to be an item, was unknown string 'patchouli:guide_book'`）—— 即已登记的**上游问题 R25**，与本模组无关（开发环境没装 patchouli）。
 
 ### 14.2 先划清分工：世界内召回已有现成实现
 

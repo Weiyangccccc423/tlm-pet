@@ -1,0 +1,34 @@
+{
+  "parent": "tlm_pet:root",
+  "criteria": {
+    "tlm_pet": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "advancements.tlm_pet.first_carry.description"
+    },
+    "frame": "goal",
+    "hidden": false,
+    "icon": {
+      "item": "tlm_pet:bond_core"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "advancements.tlm_pet.first_carry.title"
+    }
+  },
+  "requirements": [
+    [
+      "tlm_pet"
+    ]
+  ],
+  "rewards": {
+    "loot": [
+      "tlm_pet:advancements/first_carry"
+    ]
+  },
+  "sends_telemetry_event": false
+}

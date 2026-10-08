@@ -1,0 +1,34 @@
+{
+  "parent": "tlm_pet:reunion",
+  "criteria": {
+    "tlm_pet": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "advancements.tlm_pet.three_worlds.description"
+    },
+    "frame": "challenge",
+    "hidden": false,
+    "icon": {
+      "item": "tlm_pet:sanzu_key"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "advancements.tlm_pet.three_worlds.title"
+    }
+  },
+  "requirements": [
+    [
+      "tlm_pet"
+    ]
+  ],
+  "rewards": {
+    "loot": [
+      "tlm_pet:advancements/three_worlds"
+    ]
+  },
+  "sends_telemetry_event": false
+}

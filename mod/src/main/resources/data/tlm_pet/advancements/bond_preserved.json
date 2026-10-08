@@ -1,0 +1,34 @@
+{
+  "parent": "tlm_pet:first_reunion",
+  "criteria": {
+    "tlm_pet": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "advancements.tlm_pet.bond_preserved.description"
+    },
+    "frame": "challenge",
+    "hidden": false,
+    "icon": {
+      "item": "tlm_pet:undying_bond"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "advancements.tlm_pet.bond_preserved.title"
+    }
+  },
+  "requirements": [
+    [
+      "tlm_pet"
+    ]
+  ],
+  "rewards": {
+    "loot": [
+      "tlm_pet:advancements/bond_preserved"
+    ]
+  },
+  "sends_telemetry_event": false
+}

@@ -4,7 +4,10 @@
   "package": "com.tlmpet.carrier.mixin",
   "compatibilityLevel": "JAVA_17",
   "refmap": "tlm_pet.refmap.json",
-  "mixins": [],
+  "mixins": [
+    "advancement.MaidEventTriggerMixin",
+    "advancement.AltarCraftTriggerMixin"
+  ],
   "client": [],
   "injectors": {
     "defaultRequire": 1

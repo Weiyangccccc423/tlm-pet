@@ -1,0 +1,34 @@
+{
+  "parent": "tlm_pet:root",
+  "criteria": {
+    "tlm_pet": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "advancements.tlm_pet.let_go.description"
+    },
+    "frame": "challenge",
+    "hidden": false,
+    "icon": {
+      "item": "touhou_little_maid:film"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "advancements.tlm_pet.let_go.title"
+    }
+  },
+  "requirements": [
+    [
+      "tlm_pet"
+    ]
+  ],
+  "rewards": {
+    "loot": [
+      "tlm_pet:advancements/let_go"
+    ]
+  },
+  "sends_telemetry_event": false
+}
