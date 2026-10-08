@@ -5,10 +5,10 @@
 | 状态 | 设计已定稿，待实现 |
 | 目标版本 | Touhou Little Maid `1.5.3-forge+mc1.20.1`（MC 1.20.1 / Forge 47.2.0） |
 | 形态 | 独立附属模组 + 桌面程序（桌宠） |
-| 基线仓库 | `D:\TouhouLittleMaid`，分支 `1.20` |
+| 基线仓库 | TLM 官方源码 checkout（分支 `1.20`），本地路径任意 |
 | 文档性质 | 实现依据。所有"既有能力"条目均带 `路径:行号` 证据 |
 
-> 本文档服务于附属模组工程，暂存于基线仓库 `docs/` 下便于对照源码。实现开始时建议整体迁移到附属模组仓库。
+> 本文档与 `mod/` 工程在同一个仓库（`tlm-pet`）中维护。文中所有 `路径:行号` 证据均指 TLM 官方源码。
 
 ---
 
@@ -548,10 +548,10 @@ history.getDeque().descendingIterator().forEachRemaining(chatList::add);
 
 实际做法与实测数据见 `docs/environment.md`。要点：
 
-- **JDK 17**：本机原本**没有任何 JDK**，且当前会话**无管理员权限**（`winget` 装 MSI 会弹 UAC）。
-  改用清华 TUNA 镜像的 portable ZIP 解压到 `D:\tools\jdk-17`（Temurin 17.0.20.1），`JAVA_HOME` 已写入用户级环境变量。
+- **JDK 17**：开发机原本**没有任何 JDK**，且会话**无管理员权限**（`winget` 装 MSI 会弹 UAC）。
+  改用清华 TUNA 镜像的 portable ZIP 解压到自定义目录（Temurin 17.0.20.1），`JAVA_HOME` 已写入用户级环境变量。
 - **网络**：直连 Maven 系仓库实测仅 **1–64 KB/s**（Forge 官方 1 KB/s、`services.gradle.org` 完全不可达），
-  实际不可能完成构建。已配置 Gradle 走本机 Clash Verge 代理（`127.0.0.1:7897`）后，Gradle 发行版达 **14 MB/s**。
+  实际不可能完成构建。已配置 Gradle 走本地代理（`127.0.0.1:<代理端口>`）后，Gradle 发行版达 **14 MB/s**。
 - **工程骨架**：基于官方模板 `TLMAdditionExample` 建立 `mod/`，但做了三处必要改动：
   1. **补上 MixinGradle** —— 模板没有，而 D11（§12.3）与成就接管（§13.4）都依赖 mixin；
   2. **补上 `mods.toml` 对 `touhou_little_maid` 的 `AFTER` 依赖** —— 模板漏了；

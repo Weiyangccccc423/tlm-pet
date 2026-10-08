@@ -1,22 +1,25 @@
 # 开发环境说明
 
-本文件记录本机**实测**得到的工具链与网络配置，以及为什么必须这样配。
+本文件记录**实测**得到的工具链与网络配置，以及为什么必须这样配。
 换机器时按本文重做即可。
+
+> 文中形如 `<代理端口>`、`<仓库根>`、`%JAVA_HOME%` 的位置需要替换成你自己的值。
+> 本文不记录任何具体机器的路径、用户名或端口。
 
 ## 1. 工具链
 
 | 项 | 值 |
 |---|---|
 | JDK | Temurin **17.0.20.1+1** |
-| JDK 路径 | `D:\tools\jdk-17` |
+| JDK 路径 | `%JAVA_HOME%`（本文示例为独立解压目录，未装进系统目录） |
 | `JAVA_HOME` | 已写入用户级环境变量，指向上面路径 |
 | Gradle | wrapper **8.8**（`mod/gradle/wrapper/gradle-wrapper.properties`） |
 | Gradle 缓存 | `%USERPROFILE%\.gradle` |
-| 本机系统 | Windows 11 10.0 amd64 |
+| 操作系统 | Windows 11 x64 |
 
 ### JDK 是怎么装的
 
-本机原本**没有任何 JDK**（PATH、`JAVA_HOME`、常见安装目录全空），且当前会话**无管理员权限**，
+开发机原本**没有任何 JDK**（PATH、`JAVA_HOME`、常见安装目录全空），且会话**无管理员权限**，
 因此不能走 `winget install`（MSI 会弹 UAC，非交互环境会卡住）。
 
 实际做法是下载 portable ZIP 解压：
@@ -28,38 +31,42 @@ curl.exe -L -o jdk17.zip `
 tar.exe -xf jdk17.zip -C <目标目录>
 ```
 
+然后设 `JAVA_HOME` 指向 `<目标目录>` 下解压出的那一层。
+
 > JDK 9+ 没有 `lib\tools.jar` 是正常的（该类库已移除），不要据此判断安装失败。
 
 ## 2. 网络：必须走代理
 
 **这是本仓库最关键的环境约束。**
 
-直连各构建仓库的**实测吞吐**（2026 年，本机、本网络）：
+直连各构建仓库的**实测吞吐**（2026 年，国内网络）：
 
-| 仓库 | 直连 | 经代理 `127.0.0.1:7897` |
+| 仓库 | 直连 | 经代理 |
 |---|---|---|
 | `services.gradle.org`（Gradle 发行版） | **0 KB/s，完全不可达** | **14 MB/s** |
 | `maven.minecraftforge.net`（Forge） | **1 KB/s** | 894 KB/s |
 | `repo.maven.apache.org`（Maven Central） | 64 KB/s | 可用 |
 | `libraries.minecraft.net`（Mojang 库） | 128 KB/s | 可用 |
 | `www.cursemaven.com`（TLM 依赖） | 2 KB/s | 可用 |
-| 腾讯云 Gradle 镜像 | 14 MB/s | — |
+| 国内某云 Gradle 镜像 | 14 MB/s | — |
 
 按直连速度，一次完整构建需要**数天**且大量超时重试，实际上不可能完成。
 
 ### 代理配置方式
 
-本机运行 **Clash Verge**（进程 `verge-mihomo`，监听 `127.0.0.1:7897`）。
-已写入 `%USERPROFILE%\.gradle\gradle.properties`：
+启动一个本地代理客户端（监听 `127.0.0.1:<代理端口>`），然后写入
+`%USERPROFILE%\.gradle\gradle.properties`：
 
 ```properties
 systemProp.http.proxyHost=127.0.0.1
-systemProp.http.proxyPort=7897
+systemProp.http.proxyPort=<代理端口>
 systemProp.https.proxyHost=127.0.0.1
-systemProp.https.proxyPort=7897
+systemProp.https.proxyPort=<代理端口>
 ```
 
-**这是用户级全局配置，会影响本机所有 Gradle 项目**（也包括 `TouhouLittleMaid` 本体）。
+把 `<代理端口>` 换成你代理客户端的实际端口（常见 7890 / 7897）。
+
+**这是用户级全局配置，会影响本机所有 Gradle 项目**（也包括 TLM 本体）。
 若要撤销，删掉该文件即可；文件里也写了同样的说明。
 
 > 注意：Gradle wrapper 在下载 Gradle 发行版**之前**就会读取 `GRADLE_USER_HOME/gradle.properties`，
@@ -76,10 +83,10 @@ systemProp.https.proxyPort=7897
 
 ## 3. 常用命令
 
-所有命令都在 `D:\tlm-pet\mod` 下执行，且需要 `JAVA_HOME` 已设置：
+所有命令都在本仓库的 `mod/` 目录下执行，且需要 `JAVA_HOME` 已设置：
 
 ```bat
-cd D:\tlm-pet\mod
+cd <仓库根>\mod
 
 gradlew.bat build              :: 完整构建（含 reobfJar）
 gradlew.bat runClient          :: 启动带 TLM 的开发客户端
@@ -91,7 +98,7 @@ gradlew.bat tasks --all        :: 查看全部任务
 若在非交互 shell 中运行且代理配置被清掉，可临时补上：
 
 ```powershell
-$env:GRADLE_OPTS = '-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=7897 -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=7897'
+$env:GRADLE_OPTS = '-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=<代理端口> -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=<代理端口>'
 ```
 
 ## 4. 首次构建的坑：冷缓存瞬时失败
@@ -119,7 +126,7 @@ ForgeGradle 把「解析不到 universal」报告成了这个极具误导性的 
 用 `gradlew.bat help` 就能在几十秒内复现或确认修复：
 
 ```bat
-cd D:\tlm-pet\mod
+cd <仓库根>\mod
 gradlew.bat help
 ```
 
@@ -150,6 +157,12 @@ BUILD FAILED in 7m 14s
 资源站 `resources.download.minecraft.net` 实测只有 **29–40 KB/s**（走代理也没快多少），
 但资源都是几 KB 的 `.ogg`，所以耗时主要是并发请求累积，不是带宽瓶颈。
 
+如果反复重跑仍有个别资源失败，可以用确定性做法：比对
+`%USERPROFILE%\.gradle\caches\forge_gradle\assets\indexes\5.json` 里的 hash 列表与
+`assets/objects/` 目录，找出缺失或大小不符的，用 curl 逐个补下到
+`objects/<hash 前两位>/<hash>`。注意 assets 是**内容寻址**的，多个资源名会共享同一 hash，
+所以 `objects/` 的文件数会少于索引条目数，这属正常。
+
 顺带一提：`DownloadAssets` 走的是 `FileUtils.copyURLToFile` + 原生 `HttpURLConnection`，
 它只认 JVM 的 `http.proxyHost` / `https.proxyHost` **系统属性** —— 而 `~/.gradle/gradle.properties`
 里的 `systemProp.*` 正是往 Gradle JVM 注入这些属性，所以代理配置对它同样有效。
@@ -167,3 +180,14 @@ JDK 17 在中文 Windows 上 `file.encoding` 仍默认为 **GBK**（JDK 18 才�
 
 最后一条是**官方模板缺失**的：模板只设了 `options.encoding`，但资源过滤仍走平台默认编码。
 一旦 `mod_name` / `mod_description` 里出现中文，就会被写坏。
+
+> 验证方法：改完看构建产物 `mod/build/resources/main/META-INF/mods.toml`，中文应正常。
+> **不要用 PowerShell 的 `Get-Content` 直接看** —— 控制台在 GBK 代码页下会把正常的 UTF-8
+> 显示成乱码，很容易误判成文件被写坏。要么显式加 `-Encoding UTF8`，要么用支持 UTF-8 的编辑器。
+
+## 6. 版本控制注意事项
+
+- `.gitattributes` 声明 `gradlew text eol=lf`。模板 clone 下来的 `gradlew` 带 CRLF，
+  会让 Linux/CI 报 `bad interpreter: No such file or directory`。
+- 判断索引里到底存的是什么换行符，用 `git ls-files --eol`（`i/` 是索引，`w/` 是工作区）。
+  `core.autocrlf=true` 时工作区显示 CRLF 是正常的，关键看 `i/`。
