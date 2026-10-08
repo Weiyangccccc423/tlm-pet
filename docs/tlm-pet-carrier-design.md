@@ -811,6 +811,8 @@ history.getDeque().descendingIterator().forEachRemaining(chatList::add);
 | **R23** | 误把 `MaidWorldData` 当作女仆花名册 → 注入时调用 `addInfo`，而她真正卸载时 `onRemovedFromWorld` 又登记一次 → 狐之卷 / 仆人铃 / 喇叭列表出现**重复项** | 中 | **已在实现阶段修正**：注入时完全不碰该索引，抽离时改调 `removeInfo`（见 §4.2.1）。验收时专门确认"卸载后列表里只有一条" |
 | **R24** | 上游 `MaidKillRecordManager` 写入端用 `KILL_RECORD`、读取端用 `TOTAL_COUNT`，`"TotalCount"` **从未被写入** → `totalCount` 每次读档归零 → `challenge/kill_100` 几乎无法达成 | 中（上游缺陷，非本功能引入） | 抽离时**补偿**补写 `TotalCount`（见 §4.2.1），使注入后数值正确；彻底修复需 mixin 或上游修复。验收时把该成就记为已知上游问题，不要误判为本功能的 bug |
 | **R25** | 启动日志出现 `Couldn't parse element loot_tables:touhou_little_maid:grant_book_on_first_join`，根因是该表引用 `patchouli:guide_book` 而 Patchouli 未安装 | 低（上游缺陷，非本功能引入；后果仅"首次进服送指南书"失效） | 无需处理。任何不含 Patchouli 的整合包都会出现这条报错。记录下来是为了避免后续验收时把它误判成本功能引入的问题 |
+| **R26** | **注入时的三方身份分叉**：玩家先「宣告失散」（留下 `soulState=NONE` 但**仍保留 maidId** 的记录），之后却从别处得到**另一位**女仆的载荷。单女仆规则对这种情形是放行的（玩家现在确实没有女仆），但如果沿用旧记录，就会出现**记录里的 maidId ≠ 实体上的 maidId ≠ 载荷里的 maidId** —— 而 maidId 是"她回来"与"多出一只"之间唯一的判据，分叉之后两者再也无法区分 | **高**（若放任会直接破坏 D7 的判定基础） | **已在实现阶段修正**：`MaidInjector` 改为按 `current.isHer(maidId)` 分流 —— 是她就沿用原记录（保住身份连续性），不是她就 `MaidCarrierState.adoptIdentity()` 另起身份并清掉旧墓碑。同时新增 `adoptGeneration()`：注入时**载荷的代数是权威**，否则实体与记录当场分叉，下一次抽离会打印一条本该只用于真异常的"代数不一致"告警。两条都有单测覆盖 |
+| **R27** | **墓碑是单槽位的**：`MaidCarrierState` 每位玩家只存得下一位 maidId，因此也**只存得下一块墓碑**。若玩家放手 A、之后获得 B、再放手 B，则 A 的墓碑已被 B 覆盖；此时若 A 的旧载荷文件还在，重新导入会**把她复活** —— 与「放手不可撤销」（D10）相悖 | 中（需要玩家刻意保留旧载荷文件，且中间要再完成一次完整告别；不构成刷材料循环） | 当前**记录为已知残余风险，不扩大数据模型**。彻底封堵应当把墓碑改为**文件系统级**（`maids/_released/<maidId>/` 目录的存在性即墓碑，天然可累积、且不需要 NBT schema 变更）—— 这正是 §12.6 放手仪式本来就要做的归档动作，留待仪式落地时一并处理。验收时按"已知限制"记录 |
 
 ---
 
@@ -1205,6 +1207,24 @@ tlm_pet:root                       # 最珍贵的行囊（页签根，minecraft:
 **实现方式与草案不同的一点**：草案说"触发器由我们自己经 `CriteriaTriggers.register` 注册"，实际**没有注册任何自定义触发器**。这些成就的 criterion 一律用 `minecraft:impossible`（它直接实现 `CriterionTrigger`、`createInstance` 忽略 JSON，因此 `conditions` 可省略，且永不自行触发），只由 `TlmPetAdvancements.award` 在代码里显式授予。这样不必新增注册表项，语义上"只能被外力授予"也正好吻合。代价是：**授予点必须在代码里显式写全**，漏写不会报错、只会安静地少一个成就 —— 所以 `award` 在找不到成就 ID 时记 `ERROR`。
 
 **成就树的分组**：被接管的 4 个原版成就**在我们自己的命名空间下重新实现**，不修改 TLM 的文件。原版那 4 个此后永不被授予（mixin 拦截），玩家收集的是 `tlm_pet:*`。与上游的耦合因此只剩 2 个 mixin 点，而不是一份 JSON 副本。
+
+**各成就的授予点与实施状态**（这张表是"漏写就会被安静地少一个成就"的唯一清单）：
+
+| 成就 | 授予点 | 状态 |
+|---|---|---|
+| `root` | JSON 内的 `minecraft:tick`，进服即得 | ✅ |
+| `first_maid` | `AltarCraftTriggerMixin` 命中 `altar/spawn_box` | ✅ |
+| `she_chose_you` | `MaidEventTriggerMixin` 命中 `tamed_maid` | ✅ |
+| `reunion` | 上述两个 mixin（`reborn_maid` / `shrine_reborn_maid`）**以及** `MaidInjector` 注入成功后 | ✅ |
+| `found_her` | `MaidEventTriggerMixin` 命中孤儿事件（**不**返回"已接管"） | ✅ |
+| `first_carry` | `MaidExtractor` 抽离成功、状态落盘之后 | ✅ |
+| `first_reunion` | `MaidInjector` 注入成功、状态落盘之后 | ✅ |
+| `let_go` | 放手仪式成功后 | ⏳ 待仪式落地 |
+| `three_worlds` | 需要"她走过的世界数"，来自桌宠侧 lineage 长度 | ⏳ 待桌宠侧数据 |
+| `memory_keeper` | 需要桌宠侧知识库的条目数 | ⏳ 待桌宠侧数据 |
+| `bond_preserved` | 需要跨世界前后的好感度等级比较 | ⏳ 待桌宠侧数据 |
+
+> 后三个刻意**先建成就、后接数据**：成就一旦发出就无法收回，而"她走过几个世界""记忆累积了多少条"这些量目前只有桌宠侧才知道。在数据源就位之前，宁可它们暂时拿不到，也不要先用一个近似的本地计数器顶替 —— 那会让玩家拿到一个含义不对的纪念物。
 
 ---
 

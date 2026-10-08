@@ -2,6 +2,7 @@ package com.tlmpet.carrier.core;
 
 import com.tlmpet.carrier.TlmNbtKeys;
 import com.tlmpet.carrier.TlmPetCarrier;
+import com.tlmpet.carrier.advancement.TlmPetAdvancements;
 import com.tlmpet.carrier.policy.MaidCarrierPolicy;
 import com.tlmpet.carrier.policy.MaidSingletonGuard;
 import com.tlmpet.carrier.state.MaidCarrierState;
@@ -124,6 +125,10 @@ public final class MaidExtractor {
         // 状态推进紧随其实，且 toCarried() 恰好 +1，与上面算出的 generation 相等。
         state.toCarried(worldName(server));
         MaidCarrierStateStore.write(server, playerId, state);
+
+        // 成就：第一次抽离。这正是"解锁召回能力"的那一步，奖励是羁绊之核（迎回之铃的核心材料）。
+        // 放在状态落盘之后 —— 先让世界状态确定下来，再发奖励。
+        TlmPetAdvancements.award(player, TlmPetAdvancements.FIRST_CARRY);
 
         TlmPetCarrier.LOGGER.info("已抽离女仆 maidId={} 第 {} 代，落点 {}（名字 {}，好感度 {}）",
                 maidId, generation, file, payload.getProfile().getName(), payload.getBond().getFavorability());

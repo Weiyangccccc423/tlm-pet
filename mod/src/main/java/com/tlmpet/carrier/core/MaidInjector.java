@@ -2,6 +2,7 @@ package com.tlmpet.carrier.core;
 
 import com.tlmpet.carrier.TlmNbtKeys;
 import com.tlmpet.carrier.TlmPetCarrier;
+import com.tlmpet.carrier.advancement.TlmPetAdvancements;
 import com.tlmpet.carrier.policy.MaidCarrierPolicy;
 import com.tlmpet.carrier.policy.MaidSingletonGuard;
 import com.tlmpet.carrier.state.MaidCarrierState;
@@ -103,14 +104,28 @@ public final class MaidInjector {
         // 状态推进刻意放在"实体确认入世界之后"。若提前写，一旦 addFreshEntity 失败，
         // 记录就会说"她在世界里"而世界找不到她 —— 玩家既迎不回也放手不了。
         // 放在之后则最坏情况只是状态停留在 CARRIED，重试一次即可。
-        MaidCarrierState next = (current != null) ? current
-                : MaidCarrierState.fresh(maidId, worldName(server));
+        MaidCarrierState next;
+        if (current != null && current.isHer(maidId)) {
+            // 她的数据回来了（例如曾被宣告失散）。沿用原记录，保住她的身份与代数连续性。
+            next = current;
+        } else {
+            // 两种情形：首次获得（current == null），或记录属于另一位已被失散的女仆。
+            // 后者必须另起身份 —— 沿用旧记录会让记录 / 实体 / 载荷三方的 maidId 分叉，
+            // 而 maidId 是"她回来"与"多出一只"之间唯一的判据。
+            next = MaidCarrierState.fresh(maidId, worldName(server));
+        }
+        next.adoptGeneration(payload.getGeneration());
         next.toInWorld(worldName(server));
         MaidCarrierStateStore.write(server, player.getUUID(), next);
 
         TlmPetCarrier.LOGGER.info("已注入女仆 maidId={} 第 {} 代，落点 {}（名字 {}，好感度 {}）",
                 maidId, payload.getGeneration(), pos,
                 payload.getProfile().getName(), payload.getBond().getFavorability());
+
+        // 成就：第一次迎回 + 跨世界重逢。放最后 —— 世界状态已经确定，此时发奖励才对玩家是"可信的"。
+        // 两者顺序无关紧要：award 幂等，重复调用不会重复发奖（reunion 也由成就接管的 mixin 授予）。
+        TlmPetAdvancements.award(player, TlmPetAdvancements.FIRST_REUNION);
+        TlmPetAdvancements.award(player, TlmPetAdvancements.REUNION);
         return Result.success(maid);
     }
 

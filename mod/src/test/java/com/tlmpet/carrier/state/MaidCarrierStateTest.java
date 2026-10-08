@@ -1,5 +1,6 @@
 package com.tlmpet.carrier.state;
 
+import com.tlmpet.carrier.policy.MaidSingletonGuard;
 import net.minecraft.nbt.CompoundTag;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -211,5 +212,89 @@ class MaidCarrierStateTest {
         assertNotNull(a.getMaidId());
         assertTrue(a.declareLost());
         assertTrue(b.hasMaid(), "改一个不应影响另一个");
+    }
+
+    // ==================================================================================
+    // 注入时的身份重新认领
+    // ==================================================================================
+
+    @Test
+    @DisplayName("失散后得到另一位女仆的载荷，记录必须改指向新身份，而不是留着旧的 maidId")
+    void adoptingAnotherMaidRepointsIdentity() {
+        UUID lost = UUID.randomUUID();
+        UUID newcomer = UUID.randomUUID();
+        MaidCarrierState state = carried(lost);
+        assertTrue(state.declareLost());
+
+        // 玩家现在确实没有女仆，所以规则对这位新来者是放行的
+        assertEquals(MaidSingletonGuard.Decision.ALLOW_FIRST_ACQUISITION,
+                MaidSingletonGuard.decide(state, newcomer));
+
+        state.adoptIdentity(newcomer, "新的世界");
+
+        // 三方（记录 / 实体 / 载荷）必须一致，否则"她回来"与"多出一只"就再也分不清了
+        assertTrue(state.isHer(newcomer));
+        assertFalse(state.isHer(lost), "旧身份必须被彻底替换掉");
+        assertEquals(SoulState.IN_WORLD, state.getSoulState());
+        assertTrue(state.hasMaid());
+    }
+
+    @Test
+    @DisplayName("重新认领身份必须清掉旧墓碑，否则会把新她误判成旧碑")
+    void adoptingIdentityClearsTombstone() {
+        UUID newcomer = UUID.randomUUID();
+        MaidCarrierState state = filmHeld(UUID.randomUUID());
+        assertTrue(state.release());
+        assertTrue(state.isReleased());
+
+        state.adoptIdentity(newcomer, WORLD);
+
+        assertFalse(state.isReleased());
+        assertFalse(state.isTombstoned(newcomer), "她现在是新身份，不是旧墓碑");
+        assertTrue(state.hasMaid());
+
+        // 已知残余风险：旧 id 的墓碑随身份替换一起消失了 —— 记录里只存得下一位 maidId，
+        // 也就只存得下一块墓碑。彻底封堵需要把墓碑改为<b>文件系统级</b>
+        // （maids/_released/<maidId>/，见设计文档 §12.6），留待放手仪式落地时处理。
+    }
+
+    @Test
+    @DisplayName("注入时以载荷代数为权威，避免实体与记录当场分叉")
+    void adoptsPayloadGeneration() {
+        MaidCarrierState state = MaidCarrierState.fresh(UUID.randomUUID(), "世界");
+        assertEquals(1, state.getGeneration());
+
+        assertTrue(state.adoptGeneration(7));
+        assertEquals(7, state.getGeneration());
+
+        // 分叉会让下一次抽离打印一条难懂的"代数不一致"告警，而那条告警本该只用于真异常
+        assertTrue(state.toCarried("世界"));
+        assertEquals(8, state.getGeneration(), "抽离应在新代数上继续递增");
+    }
+
+    @Test
+    @DisplayName("损坏的载荷代数（小于 1）必须被拒绝，不能污染记录")
+    void rejectsCorruptGeneration() {
+        MaidCarrierState state = MaidCarrierState.fresh(UUID.randomUUID(), "世界");
+
+        assertFalse(state.adoptGeneration(0));
+        assertFalse(state.adoptGeneration(-3));
+        assertEquals(1, state.getGeneration(), "被拒绝后记录应保持原值");
+    }
+
+    @Test
+    @DisplayName("adoptIdentity 与整条生命周期相容：替换身份后依然能正常抽离")
+    void adoptedIdentityStillFollowsLifecycle() {
+        MaidCarrierState state = carried(UUID.randomUUID());
+        assertTrue(state.declareLost());
+
+        UUID newcomer = UUID.randomUUID();
+        state.adoptIdentity(newcomer, "世界");
+        state.adoptGeneration(4);
+
+        assertTrue(state.toCarried("世界"));
+        assertEquals(5, state.getGeneration());
+        assertEquals(SoulState.CARRIED, state.getSoulState());
+        assertTrue(state.isHer(newcomer));
     }
 }

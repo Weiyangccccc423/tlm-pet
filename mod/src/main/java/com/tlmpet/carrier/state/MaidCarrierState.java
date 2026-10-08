@@ -162,6 +162,47 @@ public final class MaidCarrierState {
     }
 
     /**
+     * 把记录重新指向另一位女仆（注入时使用）。
+     * <p>
+     * <b>为什么必须有这个方法</b>：状态是"每人一个槽位"。玩家可能先宣告失散（留下一条
+     * {@code soulState=NONE} 但<b>仍保留 maidId</b> 的记录），之后却从别处得到了<b>另一位</b>
+     * 女仆的载荷。单女仆规则对这种情形是放行的（玩家现在确实没有女仆），但如果沿用旧记录，
+     * 就会出现<b>记录里的 maidId ≠ 实体上的 maidId ≠ 载荷里的 maidId</b> 三方不一致 ——
+     * 而 maidId 是整条唯一性规则唯一的判据，分叉之后"她回来"与"多出一只"再也无法区分。
+     * <p>
+     * 注意墓碑（{@code released}）的处理在调用方：被正式放手的 maidId 会在规则的入口
+     * 就被拒绝，根本走不到这里。
+     */
+    public void adoptIdentity(UUID newMaidId, String worldId) {
+        this.maidId = newMaidId;
+        this.soulState = SoulState.IN_WORLD;
+        this.lastSeenWorldId = worldId;
+        // 新身份不是"已被放手"的那一位，墓碑必须清掉，否则会把新她误判成旧碑。
+        this.released = false;
+    }
+
+    /**
+     * 用载荷里的代数覆盖记录中的代数（注入时调用）。
+     * <p>
+     * 注入时<b>载荷的代数是权威</b>：它是产生这份载荷的那次抽离写下的值，也正是我们马上要写到
+     * 实体身上的值。若沿用记录里的旧值，实体与记录会当场分叉，下一次抽离就会打印一条难懂的
+     * "代数不一致"告警 —— 而那条告警本该只用于真正的异常。
+     *
+     * @return 是否被接受；代数小于 1 视为损坏（与 {@code MaidInjector} 的校验口径一致）
+     */
+    public boolean adoptGeneration(int payloadGeneration) {
+        if (payloadGeneration < 1) {
+            TlmPetCarrier.LOGGER.error("代数同步被拒绝：载荷代数 {} 小于 1，视为损坏", payloadGeneration);
+            return false;
+        }
+        if (this.generation != payloadGeneration) {
+            TlmPetCarrier.LOGGER.info("代数同步：记录 {} → 载荷 {}", this.generation, payloadGeneration);
+        }
+        this.generation = payloadGeneration;
+        return true;
+    }
+
+    /**
      * 抽离：{@code IN_WORLD → CARRIED}。
      * <p>
      * 只允许从 {@code IN_WORLD} 转出。若她已经在桌宠里或已是胶卷，
