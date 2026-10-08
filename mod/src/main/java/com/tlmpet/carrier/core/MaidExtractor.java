@@ -79,7 +79,7 @@ public final class MaidExtractor {
             return Result.failure("她的身份与记录不一致，抽离中止以免复制出第二只（她没有被移除）");
         }
         if (state.getSoulState() != SoulState.IN_WORLD) {
-            return Result.failure("她当前的状态是「" + MaidSingletonGuard.describe(state.getSoulState())
+            return Result.failure("她当前的状态是「" + MaidSingletonGuard.describe(state)
                     + "」，不能重复抽离");
         }
 

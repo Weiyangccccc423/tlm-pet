@@ -45,13 +45,14 @@
   "message.tlm_pet.recall.no_maid": "她不在你身边。先让桌宠把她的数据迎回来，铃才有回应的对象。",
   "message.tlm_pet.recall.already_here": "她已经在身边了。想让她从远处过来，用仆人铃吧。",
   "message.tlm_pet.recall.elsewhere": "她还在「%s」里。先用桌宠把她收起来，才能带她来这边。",
-  "message.tlm_pet.recall.film": "她已经是一卷胶卷了 —— 先想好要怎么对待这卷胶卷，铃叫不回一张胶卷。",
+  "message.tlm_pet.recall.film": "她被收在%1$s了 —— 铃叫不回一件容器，先想好要怎么对待它。",
   "message.tlm_pet.recall.payload_missing": "找不到她的数据（%s…）。去桌宠里看看她还在不在。",
   "message.tlm_pet.recall.payload_broken": "她的数据文件读不出来，可能已经损坏。原始文件仍在：%s",
   "message.tlm_pet.recall.success": "她回来了。",
 
   "message.tlm_pet.release.no_maid": "你还没有她，仪式没有对象。",
   "message.tlm_pet.release.not_film_held": "她不在胶卷里。先把她收进胶卷，再谈告别。",
+  "message.tlm_pet.release.wrong_carrier": "她不在胶卷里 —— 她被收在别的物品里。放手仪式的配方要的是胶卷，先把她换成胶卷再来。",
   "message.tlm_pet.release.archive_failed": "归档她的数据失败，仪式已中止，没有做任何改动。",
   "message.tlm_pet.release.failed": "仪式推进失败，没有做任何改动。请查看日志。",
   "message.tlm_pet.release.success": "彼岸花开了。她陪你去过的每一个地方，你都记得。"

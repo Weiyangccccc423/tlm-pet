@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -339,8 +340,7 @@ class MaidCarrierStateTest {
 
     @Test
     @DisplayName("她已经在世界里时，再来一个自称是她 maidId 的实体必须被拒绝")
-    void duplicateOfHerInWorldIsDenied() {
-        UUID maidId = UUID.randomUUID();
+    void duplicateOfHerInWorldIsDenied() {        UUID maidId = UUID.randomUUID();
         MaidCarrierState state = MaidCarrierState.fresh(maidId, WORLD);
         assertEquals(SoulState.IN_WORLD, state.getSoulState());
 
@@ -409,5 +409,59 @@ class MaidCarrierStateTest {
         // 与放手形成对照：失散是承认失去，不是主动告别
         assertEquals(MaidSingletonGuard.Decision.ALLOW_FIRST_ACQUISITION,
                 MaidSingletonGuard.decide(state, maidId));
+    }
+
+    // ==================================================================================
+    // 载体区分：TLM 有胶卷 / 照片 / 魂符三种，而 soulState 只有一个 FILM_HELD
+    // ==================================================================================
+
+    @Test
+    @DisplayName("收在魂符里 ≠ 收在胶卷里：状态是同一个，但放手仪式的判定必须区分")
+    void soulTalismanIsNotAFilm() {
+        // 这是被真实 bug 逼出来的用例：TLM 的 SlabClickEvent 允许用空魂符右键女仆把她收走，
+        // 而 spawnNewMaid 放下女仆后会把空魂符塞进玩家手里 —— 所以"放下她再右键她"几乎必然发生。
+        // 只看 soulState 的话，玩家会被告知"她还在你手中的那卷胶卷里"，然后翻遍背包找不到胶片。
+        MaidCarrierState state = MaidCarrierState.fresh(UUID.randomUUID(), WORLD);
+        assertTrue(state.toFilmHeld("touhou_little_maid:smart_slab_has_maid"));
+
+        assertEquals(SoulState.FILM_HELD, state.getSoulState());
+        assertEquals("touhou_little_maid:smart_slab_has_maid", state.getHeldItemId());
+        assertFalse(state.isInFilm(), "在魂符里不能被当成在胶卷里 —— 放手仪式的配方要的是胶卷");
+    }
+
+    @Test
+    @DisplayName("在真正的胶卷里才允许办放手仪式")
+    void realFilmAllowsRelease() {
+        MaidCarrierState state = MaidCarrierState.fresh(UUID.randomUUID(), WORLD);
+        assertTrue(state.toFilmHeld("touhou_little_maid:film"));
+
+        assertTrue(state.isInFilm());
+        assertTrue(state.release());
+    }
+
+    @Test
+    @DisplayName("载体未知（老存档无该字段）时保守放行，不阻断已有玩家的仪式")
+    void unknownCarrierStillAllowsRelease() {
+        MaidCarrierState state = MaidCarrierState.fresh(UUID.randomUUID(), WORLD);
+        assertTrue(state.toFilmHeld());
+
+        assertNull(state.getHeldItemId());
+        // 老存档里没有 HeldItem 字段。宁可当作"是胶卷"（维持原行为），
+        // 也不要因为读不到新字段就把玩家的放手仪式锁死。
+        assertTrue(state.isInFilm());
+    }
+
+    @Test
+    @DisplayName("载体信息必须活过存读档，且脱离物品时被清掉")
+    void heldItemSurvivesRoundTripAndClearsOnRelease() {
+        MaidCarrierState state = MaidCarrierState.fresh(UUID.randomUUID(), WORLD);
+        assertTrue(state.toFilmHeld("touhou_little_maid:photo"));
+
+        MaidCarrierState reloaded = MaidCarrierState.fromNbt(state.toNbt()).orElseThrow();
+        assertEquals("touhou_little_maid:photo", reloaded.getHeldItemId());
+
+        assertTrue(reloaded.release());
+        // 她已经不在物品里了，留着会让之后的措辞继续指着那张照片
+        assertNull(reloaded.getHeldItemId());
     }
 }

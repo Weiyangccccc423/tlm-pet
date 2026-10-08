@@ -4,6 +4,7 @@ import com.tlmpet.carrier.TlmPetCarrier;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 
+import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,6 +33,8 @@ public final class MaidCarrierState {
     private static final String NBT_GENERATION = "Generation";
     private static final String NBT_LAST_WORLD = "LastSeenWorldId";
     private static final String NBT_RELEASED = "Released";
+    /** 她所在的载体物品注册名。仅用于措辞（见 {@link #getHeldItemId()}）。 */
+    private static final String NBT_HELD_ITEM = "HeldItem";
 
     /** 逻辑身份 ID。为 null 表示从未拥有过女仆。 */
     private UUID maidId;
@@ -60,6 +63,18 @@ public final class MaidCarrierState {
      * 失散是承认失去，如果玩家后来找回了数据，让她回来反而是对的。
      */
     private boolean released;
+
+    /**
+     * 她当前被收在哪一种物品里（物品注册名，例如 {@code touhou_little_maid:film}）。
+     * <p>
+     * <b>只用于给玩家说人话，不参与任何判定。</b> 存在的理由是 TLM 有<b>三种</b>载体 ——
+     * 胶卷（{@code ItemFilm}）、照片（{@code ItemPhoto}）、魂符（{@code ItemSmartSlab}）——
+     * 而 {@code soulState} 只有一个 {@code FILM_HELD}。若不记这一项，玩家把女仆收进魂符后
+     * 会被告知"她还在你手中的那卷胶卷里"，然后翻遍背包找不到胶片。
+     *
+     * <p>为 null 表示未知（例如存档来自更早的版本）。
+     */
+    private String heldItemId;
 
     private MaidCarrierState() {
     }
@@ -130,8 +145,36 @@ public final class MaidCarrierState {
         return switch (getSoulState()) {
             case IN_WORLD -> "她在世界里" + (lastSeenWorldId == null ? "" : "（" + lastSeenWorldId + "）");
             case CARRIED -> "她在桌宠里";
-            case FILM_HELD -> "她以胶卷形式在你手中";
+            // 不能写死"胶卷"：收进魂符（ItemSmartSlab）走的是同一个状态，
+            // 而 spawnNewMaid 放下女仆后会把空魂符塞进玩家手里，
+            // 所以"放下她、再右键她"几乎必然发生，然后玩家会翻遍背包找一卷不存在的胶片。
+            case FILM_HELD -> "她被收在" + carrierName(heldItemId);
             case NONE -> "尚未拥有女仆";
+        };
+    }
+
+    /**
+     * 她当前被收在哪种物品里的人类可读名字。
+     * <p>
+     * TLM 有三种载体（胶卷 {@code ItemFilm} / 照片 {@code ItemPhoto} / 魂符 {@code ItemSmartSlab}），
+     * 而 {@code soulState} 只有一个 {@code FILM_HELD} —— 所以载体名只能从记录里读，
+     * 不能靠状态名去猜。放在这里是因为字段在这里，其他类都应当复用而不是各写一份。
+     */
+    public String describeCarrier() {
+        return carrierName(heldItemId);
+    }
+
+    /** 见 {@link #describeCarrier()}。{@code id} 为 null 时返回泛称。 */
+    public static String carrierName(@Nullable String id) {
+        if (id == null) {
+            return "物品里";
+        }
+        return switch (id) {
+            case "touhou_little_maid:film" -> "胶卷里";
+            case "touhou_little_maid:photo" -> "照片里";
+            // 空魂符与带女仆的魂符是两个注册名，但玩家眼里都是"魂符"。
+            case "touhou_little_maid:smart_slab_has_maid", "touhou_little_maid:smart_slab_init" -> "魂符里";
+            default -> id + " 里";
         };
     }
 
@@ -226,18 +269,47 @@ public final class MaidCarrierState {
      * 玩家就能拿到两张胶卷 —— 也就是两只她（R20）。
      */
     public boolean toFilmHeld() {
+        return toFilmHeld(null);
+    }
+
+    /**
+     * 同上，并记下她具体被收进了哪一种物品。
+     *
+     * @param heldItemId 物品注册名（{@code touhou_little_maid:film} /
+     *                   {@code touhou_little_maid:photo} / {@code touhou_little_maid:smart_slab_has_maid}）；
+     *                   为 null 表示未知。仅用于措辞，不参与判定。
+     */
+    public boolean toFilmHeld(@Nullable String heldItemId) {
         SoulState now = getSoulState();
         // 两个合法来源，理由不同：
         //   CARRIED  —— §12.6.1 的"亲手取出胶卷"，是放手仪式的必经一步；
-        //   IN_WORLD —— TLM 自带的相机/胶卷机制：拍照会把她的数据存进物品并 discard 实体。
+        //   IN_WORLD —— TLM 自带的载体机制：胶卷/照片/魂符都会把她的数据存进物品并 discard 实体。
         //               这条路径不经过我们，若不接受它，我们的记录会一直以为"她还在世界里"，
-        //               而实际上她已经是一张照片躺在背包里了。
+        //               而实际上她已经躺在背包里了。
         if (now != SoulState.CARRIED && now != SoulState.IN_WORLD) {
             TlmPetCarrier.LOGGER.error("转为 FILM_HELD 被拒绝：当前状态为 {}，只接受 CARRIED 或 IN_WORLD", now);
             return false;
         }
         this.soulState = SoulState.FILM_HELD;
+        this.heldItemId = heldItemId;
         return true;
+    }
+
+    /**
+     * 她是否被收在<b>真正的胶卷</b>里。
+     * <p>
+     * 放手仪式的配方要的就是胶卷，所以这个判定决定了仪式能不能做 ——
+     * 而不是"只要她在某个物品里就行"。把她收在魂符里的玩家不该能顺手办仪式。
+     */
+    public boolean isInFilm() {
+        return getSoulState() == SoulState.FILM_HELD
+                && (heldItemId == null || heldItemId.equals("touhou_little_maid:film"));
+    }
+
+    /** 她所在的载体物品注册名，可能为 null（未知）。 */
+    @Nullable
+    public String getHeldItemId() {
+        return heldItemId;
     }
 
     /**
@@ -278,6 +350,8 @@ public final class MaidCarrierState {
     private void clearToNone(boolean releasedByRitual) {
         this.soulState = SoulState.NONE;
         this.released = releasedByRitual;
+        // 载体信息必须清掉：她已经不在物品里了，留着会让 later 的措辞继续指着那张胶卷。
+        this.heldItemId = null;
         // 刻意保留 maidId 与 generation 不清零：
         // ① released 的墓碑判定需要 maidId；
         // ② 归档目录名（_released / _lost）用它命名；
@@ -303,6 +377,9 @@ public final class MaidCarrierState {
         }
         if (released) {
             tag.putBoolean(NBT_RELEASED, true);
+        }
+        if (heldItemId != null) {
+            tag.putString(NBT_HELD_ITEM, heldItemId);
         }
         return tag;
     }
@@ -331,6 +408,8 @@ public final class MaidCarrierState {
         state.generation = tag.getInt(NBT_GENERATION);
         state.lastSeenWorldId = tag.contains(NBT_LAST_WORLD) ? tag.getString(NBT_LAST_WORLD) : null;
         state.released = tag.getBoolean(NBT_RELEASED);
+        // 老存档没有这个键 —— 留 null，措辞会退化成"某个物品里"，而不是错误地断言是胶卷。
+        state.heldItemId = tag.contains(NBT_HELD_ITEM) ? tag.getString(NBT_HELD_ITEM) : null;
         return Optional.of(state);
     }
 

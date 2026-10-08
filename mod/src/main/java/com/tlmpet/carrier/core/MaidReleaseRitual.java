@@ -4,7 +4,6 @@ import com.tlmpet.carrier.TlmPetCarrier;
 import com.tlmpet.carrier.advancement.TlmPetAdvancements;
 import com.tlmpet.carrier.state.MaidCarrierState;
 import com.tlmpet.carrier.state.MaidCarrierStateStore;
-import com.tlmpet.carrier.state.SoulState;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -58,15 +57,21 @@ public final class MaidReleaseRitual {
             return false;
         }
         UUID maidId = state.getMaidId();
-        if (state.getSoulState() != SoulState.FILM_HELD) {
-            // 最常见的原因：玩家把别人的胶卷（或随便一张胶卷）摆上了祭坛。
-            reject(player, "message.tlm_pet.release.not_film_held");
-            TlmPetCarrier.LOGGER.info("放手仪式被拒绝：owner={}，当前状态={}", playerId, state.getSoulState());
+        // 必须是**胶卷**，而不只是"被收在某个物品里"。
+        //
+        // 这条区分是被真实 bug 逼出来的：TLM 有胶卷 / 照片 / 魂符三种载体，而我们只有一个
+        // FILM_HELD 状态。若不看载体，把女仆收进魂符的玩家摆一张无关的胶卷就能办放手仪式 ——
+        // 而她其实还好端端地躺在魂符里。仪式的配方要的就是胶卷，判定必须与配方一致。
+        if (!state.isInFilm()) {
+            reject(player, state.getHeldItemId() == null
+                    ? "message.tlm_pet.release.not_film_held"
+                    : "message.tlm_pet.release.wrong_carrier");
+            TlmPetCarrier.LOGGER.info("放手仪式被拒绝：owner={}，当前状态={}，载体={}",
+                    playerId, state.getSoulState(), state.getHeldItemId());
             return false;
         }
 
-        Optional<Path> archived = Optional.ofNullable(MaidArchive.archiveReleased(maidId));
-        if (archived.isEmpty()) {
+        Optional<Path> archived = Optional.ofNullable(MaidArchive.archiveReleased(maidId));        if (archived.isEmpty()) {
             reject(player, "message.tlm_pet.release.archive_failed");
             return false;
         }

@@ -6,10 +6,14 @@ import com.tlmpet.carrier.state.MaidCarrierState;
 import com.tlmpet.carrier.state.MaidCarrierStateStore;
 import com.github.tartaricacid.touhoulittlemaid.api.event.MaidAndItemTransformEvent;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.registries.ForgeRegistries;
 
+import javax.annotation.Nullable;
 import java.util.UUID;
 
 /**
@@ -66,11 +70,28 @@ public final class MaidFilmEvents {
             // 前者会由 EntityJoinLevelEvent 在她重新落进世界时登记。
             return;
         }
-        if (current.toFilmHeld()) {
+        if (current.toFilmHeld(itemIdOf(event.getItem()))) {
             MaidCarrierStateStore.write(server, ownerId, current);
-            TlmPetCarrier.LOGGER.info("她已被收进物品：owner={}，maidId={}，状态={}",
-                    ownerId, current.getMaidId(), current.getSoulState());
+            TlmPetCarrier.LOGGER.info("她已被收进物品：owner={}，maidId={}，状态={}，载体={}",
+                    ownerId, current.getMaidId(), current.getSoulState(), current.getHeldItemId());
         }
+    }
+
+    /**
+     * 从事件里取出她到底被收进了什么物品。
+     * <p>
+     * <b>这正是这个事件的价值所在</b> —— TLM 有三种载体（胶卷 / 照片 / 魂符），
+     * 而我们的 {@code soulState} 只有一个 {@code FILM_HELD}。若丢掉这一项，
+     * 把女仆收进魂符的玩家会被告知"她还在你手中的那卷胶卷里"，
+     * 然后翻遍背包找不到胶片（真实发生过的 bug）。
+     */
+    @Nullable
+    private static String itemIdOf(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return null;
+        }
+        ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        return id == null ? null : id.toString();
     }
 
     // 刻意**不**订阅 MaidAndItemTransformEvent.ToMaid。

@@ -92,7 +92,8 @@ public class RecallBellItem extends Item {
             case IN_WORLD -> isElsewhere(state, level)
                     ? Component.translatable("message.tlm_pet.recall.elsewhere", state.getLastSeenWorldId())
                     : Component.translatable("message.tlm_pet.recall.already_here");
-            case FILM_HELD -> Component.translatable("message.tlm_pet.recall.film");
+            case FILM_HELD -> Component.translatable("message.tlm_pet.recall.film",
+                    state.describeCarrier());
             case NONE -> Component.translatable("message.tlm_pet.recall.no_maid");
         };
         if (blocked != null) {

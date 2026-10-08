@@ -201,3 +201,51 @@ pet/                             空占位（Phase 2）
 | R6 | 摆齐 §8.1 的材料做仪式 | 得到彼岸花纪念物，`let_go` 成就解锁 |
 | R7 | 仪式后把当初抽离的载荷文件重新 `import` | **必须被拒绝**（放手不可撤销） |
 | R8 | `/tlm-pet lost declare confirm` | 回到"没有女仆"，且**不**留下墓碑；可以重新获得一位全新的她 |
+
+---
+
+## 10. 第五轮：魂符（`smart_slab`）的发现与一个由我引入的 bug
+
+### 10.1 第一只女仆的真实来源是魂符，不是驯服
+
+- 魂符 = `touhou_little_maid:smart_slab`；配置项 `misc.GiveSoulSpell`（界面名「是否给予魂符」）**默认 `true`**。
+- 发放路径：`EnterServerEvent` → `InitTrigger.GIVE_SMART_SLAB_CONFIG` → 成就奖励 → `touhou_little_maid:smart_slab_init`。
+- 放置时走 `ItemSmartSlab.spawnNewMaid` → `worldIn.addFreshEntity(maid)`，**我们拦得住**（新生女仆没有 `MAID_ID`，
+  判定为 `ALLOW_FIRST_ACQUISITION` 或 `DENY_ALREADY_BOUND`），单女仆规则成立。
+
+⚠️ **验收请从魂符开始**，不要用刷怪蛋 —— 那会绕过"第一只女仆是怎么来的"这个真实前提。
+
+### 10.2 我引入的 bug：把魂符说成了胶卷
+
+TLM 有**三种**女仆载体，而我只给了一个状态 `FILM_HELD`：
+
+| 载体 | 物品 | 触发点 |
+|---|---|---|
+| 胶卷 | `touhou_little_maid:film` | `ItemFilm.maidToFilm` |
+| 照片 | `touhou_little_maid:photo` | `ItemCamera.spawnMaidPhoto` |
+| **魂符** | `touhou_little_maid:smart_slab_has_maid` | **`SlabClickEvent`：用空魂符右键女仆** |
+
+而 `spawnNewMaid` 放下女仆后会把**空魂符**塞进玩家手里（`ItemSmartSlab.java:166`）——
+所以"放下她、再右键她"是一个几乎必然发生的动作。结果：玩家把女仆收进魂符，
+`/tlm-pet status` 却说"**她以胶卷形式在你手中**"，然后翻遍背包找不到胶片。
+
+**已修**：`MaidAndItemTransformEvent.getItem()` 本来就能告诉我们载体是什么，我把它丢掉了。
+现在记录里多了 `HeldItem` 字段，状态描述、拒绝文案、迎回之铃提示都会说"她被收在魂符里"。
+并且放手仪式改为要求 `isInFilm()` —— **配方要的是胶卷，判定就必须和配方一致**，
+否则收在魂符里的玩家摆一张无关胶卷就能办仪式。
+
+> 老存档没有 `HeldItem` 字段。此时 `isInFilm()` 保守地返回 `true`（维持原行为），
+> 措辞退化成"她被收在物品里"，**不会**因为读不到新字段就把玩家的仪式锁死。
+
+### 10.3 顺带修掉的：磁盘墓碑没在所有入口生效（`78da996`）
+
+上一轮把 R27 的墓碑落到文件系统，但只让导入路径查了它。而"把她带回来"的路径还有
+**魂符、胶卷、照片、祭坛**。于是"放手 A → 获得 B → 放手 B"之后，A 的魂符仍能让她回来。
+现在 `MaidAdoption.guardDecide` 统一裁决，磁盘墓碑对三个入口全部生效。
+
+### 10.4 未修：R30 魂符被白扣
+
+`spawnNewMaid` 的顺序是 `addFreshEntity`（我们在此取消）→ 粒子 + 水声 → **把魂符换成空符**。
+所以已有女仆时再用魂符，会看到"粒子 + 声音 + 魂符变空符，但女仆没出来"。
+生存下还会顺手 `cap.add()` 一次（一个不存在的女仆占着计数）。修法是在 `spawnNewMaid`
+入口注入、在消耗前裁决。**尚未修**，等你验收后定。

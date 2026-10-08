@@ -110,7 +110,7 @@ public final class MaidSingletonGuard {
         return switch (current.getSoulState()) {
             case CARRIED -> "你已经拥有她了 —— 她正在桌宠里休息。先把她迎回这个世界，"
                     + "而不是在这里寻找替代品。";
-            case FILM_HELD -> "她还在你手中的那卷胶卷里。使用胶卷让她现身，"
+            case FILM_HELD -> "她已经被收起来了（" + carrierName(current) + "）。把她放出来，"
                     + "或者去祭坛与她正式告别。";
             case IN_WORLD -> "你已经拥有她了。她正在" + where + "等着你 —— "
                     + "每位玩家只有一位女仆，而那位已经是你的人了。";
@@ -118,13 +118,36 @@ public final class MaidSingletonGuard {
         };
     }
 
-    /** 简短状态说明，用于命令与调试输出。 */
-    public static String describe(SoulState state) {
-        return switch (state) {
+    /**
+     * 她当前被收在哪种物品里的人类可读名字。
+     * <p>
+     * TLM 有胶卷 / 照片 / 魂符三种载体，而 {@code soulState} 只有一个 {@code FILM_HELD}。
+     * 所以这个名字必须从记录里读，不能靠状态名去猜 —— 否则把女仆收进魂符的玩家
+     * 会被指向一卷他根本没有的胶片。
+     */
+    /**
+     * 她当前被收在哪种物品里的人类可读名字。
+     * <p>
+     * 委托给 {@link MaidCarrierState#carrierName(String)} —— 载体字段在那里，
+     * 命名规则也只该有一份。
+     */
+    public static String carrierName(MaidCarrierState current) {
+        return current.describeCarrier();
+    }
+
+    /**
+     * 简短状态说明，用于命令与调试输出。
+     * <p>
+     * 刻意接收整个记录而不是 {@code SoulState}：{@code FILM_HELD} 这个名字本身是有误导性的
+     * （TLM 有胶卷 / 照片 / 魂符三种载体，而我们只有一个状态），只有记录里才知道她到底在哪。
+     * 之前固定输出"以胶卷形式持有"，导致把女仆收进魂符的玩家被指向一卷不存在的胶片。
+     */
+    public static String describe(MaidCarrierState current) {
+        return switch (current.getSoulState()) {
             case NONE -> "未拥有";
             case IN_WORLD -> "在世界中";
             case CARRIED -> "在桌宠里";
-            case FILM_HELD -> "以胶卷形式持有";
+            case FILM_HELD -> "被收在" + carrierName(current);
         };
     }
 }
