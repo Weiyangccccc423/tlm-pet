@@ -3,6 +3,10 @@ package com.tlmpet.carrier.core;
 import com.tlmpet.carrier.TlmNbtKeys;
 import com.tlmpet.carrier.TlmPetCarrier;
 import com.tlmpet.carrier.policy.MaidCarrierPolicy;
+import com.tlmpet.carrier.policy.MaidSingletonGuard;
+import com.tlmpet.carrier.state.MaidCarrierState;
+import com.tlmpet.carrier.state.MaidCarrierStateStore;
+import com.tlmpet.carrier.state.SoulState;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.github.tartaricacid.touhoulittlemaid.world.backups.MaidBackupsManager;
 import net.minecraft.nbt.CompoundTag;
@@ -51,14 +55,44 @@ public final class MaidExtractor {
             return Result.failure("她已经不在了");
         }
 
-        // 第一步必须是备份。抽离会把她从世界里删掉，没有备份就没有退路。
-        MaidBackupsManager.save(server, maid);
+        UUID playerId = player.getUUID();
+
+        // ---- 状态判定。状态是权威，实体不是 ----
+        // 只有"她正在世界里"才允许抽离。若状态已是 CARRIED / FILM_HELD，
+        // 说明眼前这个实体是重复来源（兜底拦截正常工作时不该出现），
+        // 抽离它会凭空制造出第二份她。
+        MaidCarrierState state = MaidCarrierStateStore.get(server, playerId).orElse(null);
+        if (state == null || !state.hasMaid()) {
+            TlmPetCarrier.LOGGER.error("抽离被拒绝：玩家 {} 没有身份记录，但世界里有一位属于她的女仆", playerId);
+            return Result.failure("没有找到她的身份记录，抽离中止（她没有被移除）");
+        }
 
         CompoundTag persistent = maid.getPersistentData();
         UUID maidId = persistent.hasUUID(TlmNbtKeys.MAID_ID)
                 ? persistent.getUUID(TlmNbtKeys.MAID_ID)
-                : UUID.randomUUID();
-        int generation = persistent.getInt(TlmNbtKeys.GENERATION) + 1;
+                : null;
+        if (maidId == null || !state.isHer(maidId)) {
+            TlmPetCarrier.LOGGER.error("抽离被拒绝：实体 maidId={} 与身份记录（{}）不一致",
+                    maidId, state.getMaidId());
+            return Result.failure("她的身份与记录不一致，抽离中止以免复制出第二只（她没有被移除）");
+        }
+        if (state.getSoulState() != SoulState.IN_WORLD) {
+            return Result.failure("她当前的状态是「" + MaidSingletonGuard.describe(state.getSoulState())
+                    + "」，不能重复抽离");
+        }
+
+        // 第一步必须是备份。抽离会把她从世界里删掉，没有备份就没有退路。
+        MaidBackupsManager.save(server, maid);
+
+        // generation 以状态记录为准来计算，而不是读实体 ——
+        // 两个来源一旦分叉（例如实体被外部工具改过），就会出现"同一个她有两个代数"，
+        // 那会让防重放判断失效。这里以状态为唯一权威，并在不一致时告警。
+        int entityGeneration = persistent.getInt(TlmNbtKeys.GENERATION);
+        if (entityGeneration != state.getGeneration()) {
+            TlmPetCarrier.LOGGER.warn("女仆代数不一致：实体={}，身份记录={}，以身份记录为准（maidId={}）",
+                    entityGeneration, state.getGeneration(), maidId);
+        }
+        int generation = state.getGeneration() + 1;
         persistent.putUUID(TlmNbtKeys.MAID_ID, maidId);
         persistent.putInt(TlmNbtKeys.GENERATION, generation);
 
@@ -87,9 +121,18 @@ public final class MaidExtractor {
         MaidCarrierPolicy.unregister(maid);
         maid.discard();
 
+        // 状态推进紧随其实，且 toCarried() 恰好 +1，与上面算出的 generation 相等。
+        state.toCarried(worldName(server));
+        MaidCarrierStateStore.write(server, playerId, state);
+
         TlmPetCarrier.LOGGER.info("已抽离女仆 maidId={} 第 {} 代，落点 {}（名字 {}，好感度 {}）",
                 maidId, generation, file, payload.getProfile().getName(), payload.getBond().getFavorability());
         return Result.success(payload, file);
+    }
+
+    /** 用存档名而不是维度 ID —— 玩家心里的"世界"是那个存档。 */
+    private static String worldName(MinecraftServer server) {
+        return server.getWorldData().getLevelName();
     }
 
     /**

@@ -5,11 +5,14 @@ import com.tlmpet.carrier.core.CarrierPayload;
 import com.tlmpet.carrier.core.MaidCarrierStore;
 import com.tlmpet.carrier.core.MaidExtractor;
 import com.tlmpet.carrier.core.MaidInjector;
+import com.tlmpet.carrier.state.MaidCarrierState;
+import com.tlmpet.carrier.state.MaidCarrierStateStore;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.github.tartaricacid.touhoulittlemaid.util.MaidRayTraceHelper;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.ChatFormatting;
@@ -17,6 +20,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -31,19 +35,26 @@ import java.util.concurrent.CompletableFuture;
  * {@code /tlm-pet} 命令。
  *
  * <pre>
- * /tlm-pet export          抽离视线内（或 8 格内最近的）自己的女仆
- * /tlm-pet import &lt;标识&gt;   注入一位女仆，标识可以是 maidId 前缀或她的名字
- * /tlm-pet list            列出本机全部载荷
+ * /tlm-pet export            抽离视线内（或 8 格内最近的）自己的女仆
+ * /tlm-pet import &lt;标识&gt;     注入一位女仆，标识可以是 maidId 前缀或她的名字
+ * /tlm-pet list              列出本机全部载荷
+ * /tlm-pet status [玩家]     查看身份记录（她在哪个世界、什么状态、第几代）
+ * /tlm-pet reset &lt;玩家&gt;      清除身份记录（权限 2，管理/调试用逃生口）
  * </pre>
  *
- * <h2>关于权限等级</h2>
- * 目前是 <b>0</b>（任何玩家可用）。这是 Phase 1 的临时状态，故意的：
- * Phase 1 只验证政策层（剥离/重映射/还原）是否正确，D7/D8 的「每位玩家仅一个女仆」规则
- * 要到 Phase 1b 才落地。在那之前，同一个载荷可以被反复注入 —— 也就是能刷出多个女仆。
- * 因此每次执行都会打一条 warning，提醒这个窗口是开着的。
- * <p>
- * Phase 1b 落地后，这里应改为按 {@code MaidCarrierState} 判定，而不是简单提权：
- * "她是否已在某个世界"是<b>状态问题</b>，不是权限问题，提权只是掩盖它。
+ * <h2>为什么 {@code export} / {@code import} 是权限 0</h2>
+ * 唯一性已经由 {@code MaidCarrierState} 的状态机强制，不再依赖权限：
+ * <ul>
+ *   <li>{@code export} 只允许抽离<b>自己</b>的女仆（{@code isOwnedBy} 校验），
+ *       且要求她的状态必须是 {@code IN_WORLD}；</li>
+ *   <li>{@code import} 会先过 {@link com.tlmpet.carrier.policy.MaidSingletonGuard}，
+ *       她已经在别处时会被拒绝。</li>
+ * </ul>
+ * 所以权限 0 不会开出口子 —— "她是否已被某个世界持有"是<b>状态问题</b>，
+ * 用权限去管只会掩盖它，而且会让单机玩家为了用一个陪伴功能去找 OP。
+ *
+ * <p>{@code reset} 是另一回事：它是刻意保留的后门（§12.7），能绕过全部规则，
+ * 所以必须权限 2，且每次执行都会记一条 warning 日志。
  */
 @Mod.EventBusSubscriber(modid = TlmPetCarrier.MOD_ID)
 public final class TlmPetCommand {
@@ -64,7 +75,99 @@ public final class TlmPetCommand {
                                 .suggests(TlmPetCommand::suggestPayloads)
                                 .executes(TlmPetCommand::importMaid)))
                 .then(Commands.literal("list")
-                        .executes(TlmPetCommand::listPayloads)));
+                        .executes(TlmPetCommand::listPayloads))
+                .then(Commands.literal("status")
+                        .executes(TlmPetCommand::showOwnStatus)
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .suggests(TlmPetCommand::suggestPlayers)
+                                .executes(TlmPetCommand::showPlayerStatus)))
+                .then(Commands.literal("reset")
+                        .requires(source -> source.hasPermission(2))
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .suggests(TlmPetCommand::suggestPlayers)
+                                .executes(TlmPetCommand::resetPlayer))));
+    }
+
+    // ==================================================================================
+    // status
+    // ==================================================================================
+
+    private static int showOwnStatus(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        return showStatusFor(context, context.getSource().getPlayerOrException());
+    }
+
+    private static int showPlayerStatus(CommandContext<CommandSourceStack> context) {
+        ServerPlayer target = findPlayer(context, StringArgumentType.getString(context, "player"));
+        if (target == null) {
+            return 0;
+        }
+        return showStatusFor(context, target);
+    }
+
+    private static int showStatusFor(CommandContext<CommandSourceStack> context, ServerPlayer player) {
+        MinecraftServer server = context.getSource().getServer();
+        String who = player.getName().getString();
+        Optional<MaidCarrierState> found = MaidCarrierStateStore.get(server, player.getUUID());
+
+        if (found.isEmpty()) {
+            context.getSource().sendSuccess(
+                    () -> Component.literal(who + "：还没有身份记录（尚未拥有女仆）"), false);
+            return 1;
+        }
+
+        MaidCarrierState state = found.get();
+        String line = who + "：" + state.describe()
+                + "\n  状态=" + state.getSoulState()
+                + "  代数=" + state.getGeneration()
+                + (state.isReleased() ? "  [已正式放手，此 maidId 已封存]" : "")
+                + "\n  maidId=" + state.getMaidId();
+        context.getSource().sendSuccess(
+                () -> Component.literal(line).withStyle(ChatFormatting.GRAY), false);
+        return 1;
+    }
+
+    // ==================================================================================
+    // reset（刻意保留的后门）
+    // ==================================================================================
+
+    private static int resetPlayer(CommandContext<CommandSourceStack> context) {
+        String name = StringArgumentType.getString(context, "player");
+        ServerPlayer target = findPlayer(context, name);
+        if (target == null) {
+            return 0;
+        }
+        MinecraftServer server = context.getSource().getServer();
+        MaidCarrierStateStore.clear(server, target.getUUID());
+
+        // 后门必须留痕：这是唯一能绕过唯一性规则的入口，出问题时要能查出是谁用的。
+        TlmPetCarrier.LOGGER.warn("管理员「{}」清除了玩家 {}（{}）的女仆身份记录",
+                context.getSource().getTextName(), name, target.getUUID());
+
+        context.getSource().sendSuccess(() -> Component.literal(
+                "已清除 " + name + " 的女仆身份记录。该玩家现在可以重新获得一位女仆。"), true);
+        return 1;
+    }
+
+    // ==================================================================================
+    // 工具
+    // ==================================================================================
+
+    /** @return 在线玩家；找不到时已发出失败消息并返回 null */
+    private static ServerPlayer findPlayer(CommandContext<CommandSourceStack> context, String name) {
+        ServerPlayer target = context.getSource().getServer().getPlayerList().getPlayerByName(name);
+        if (target == null) {
+            context.getSource().sendFailure(Component.literal("找不到在线玩家：" + name));
+        }
+        return target;
+    }
+
+    private static CompletableFuture<Suggestions> suggestPlayers(CommandContext<CommandSourceStack> context,
+                                                                 SuggestionsBuilder builder) {
+        return SharedSuggestionProvider.suggest(
+                context.getSource().getServer().getPlayerList().getPlayers().stream()
+                        .map(player -> player.getName().getString())
+                        .toList(),
+                builder);
     }
 
     // ==================================================================================
@@ -107,7 +210,6 @@ public final class TlmPetCommand {
             context.getSource().sendFailure(Component.literal("该命令只能由玩家执行"));
             return 0;
         }
-        warnWhileSingletonNotEnforced(context);
 
         Optional<EntityMaid> target = findTargetMaid(player);
         if (target.isEmpty()) {
@@ -157,7 +259,6 @@ public final class TlmPetCommand {
             context.getSource().sendFailure(Component.literal("该命令只能由玩家执行"));
             return 0;
         }
-        warnWhileSingletonNotEnforced(context);
 
         String token = StringArgumentType.getString(context, "who");
         List<Path> candidates = MaidCarrierStore.search(token);
@@ -204,10 +305,5 @@ public final class TlmPetCommand {
                 .map(CarrierPayload::getMaidId)
                 .toList();
         return SharedSuggestionProvider.suggest(ids, builder);
-    }
-
-    private static void warnWhileSingletonNotEnforced(CommandContext<CommandSourceStack> context) {
-        TlmPetCarrier.LOGGER.warn("玩家 {} 在「单女仆规则尚未生效」的阶段使用了 /{}",
-                context.getSource().getTextName(), ROOT);
     }
 }

@@ -3,14 +3,19 @@ package com.tlmpet.carrier.core;
 import com.tlmpet.carrier.TlmNbtKeys;
 import com.tlmpet.carrier.TlmPetCarrier;
 import com.tlmpet.carrier.policy.MaidCarrierPolicy;
+import com.tlmpet.carrier.policy.MaidSingletonGuard;
+import com.tlmpet.carrier.state.MaidCarrierState;
+import com.tlmpet.carrier.state.MaidCarrierStateStore;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 
+import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,6 +50,22 @@ public final class MaidInjector {
             return Result.failure("载荷代数非法，注入中止");
         }
 
+        UUID maidId = parseMaidId(payload);
+        if (maidId == null) {
+            return Result.failure("载荷中的 maidId 不是合法 UUID，注入中止");
+        }
+
+        MinecraftServer server = level.getServer();
+        MaidCarrierState current = MaidCarrierStateStore.get(server, player.getUUID()).orElse(null);
+
+        // 单女仆规则的前置检查。这里做的是<b>体验</b>而非正确性：
+        // 正确性由 MaidSingletonEvents 的兜底拦截保证，但如果只靠它，
+        // 玩家会看到女仆"闪一下就没了"却不知道原因，也不知道该怎么办。
+        MaidSingletonGuard.Decision decision = MaidSingletonGuard.decide(current, maidId);
+        if (!MaidSingletonGuard.isAllowed(decision)) {
+            return Result.failure(MaidSingletonGuard.denyMessage(current));
+        }
+
         warnOnCompatDrift(payload);
 
         Optional<CompoundTag> decoded = payload.decodeMaidNbt();
@@ -62,30 +83,56 @@ public final class MaidInjector {
             return Result.failure("载荷无法还原为女仆实体（id 键可能被破坏），注入中止");
         }
 
+        // 身份必须在入世界之前写到实体上：兜底拦截是在 addFreshEntity 内部<b>同步</b>触发的，
+        // 它正是靠这个 maidId 区分"来者就是她"（放行）与"多出了一只"（拦截）。
+        // 若沿用 Phase 1 写在 addFreshEntity 之后的顺序，我们自己的注入会被自己拦掉。
+        CompoundTag persistent = maid.getPersistentData();
+        persistent.putUUID(TlmNbtKeys.MAID_ID, maidId);
+        persistent.putInt(TlmNbtKeys.GENERATION, payload.getGeneration());
+
         maid.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, player.getYRot(), 0.0F);
 
         if (!level.addFreshEntity(maid)) {
-            TlmPetCarrier.LOGGER.error("女仆实体加入世界失败：maidId={}，落点 {}", payload.getMaidId(), pos);
+            TlmPetCarrier.LOGGER.error("女仆实体加入世界失败：maidId={}，落点 {}", maidId, pos);
             return Result.failure("女仆实体加入世界失败，注入中止（载荷未被消耗，可重试）");
         }
 
         // 必须在入世界之后调用：SchedulePos.clear 会读 maid.level 来记录所属维度。
         MaidCarrierPolicy.clearWorldBinding(maid);
 
-        // 身份回写。这样她下一次被抽离时能认得出自己是谁，generation 才会继续递增
-        // 而不是从 1 重新开始（否则每次都生成新身份，"同一个她"就断了）。
-        CompoundTag persistent = maid.getPersistentData();
-        try {
-            persistent.putUUID(TlmNbtKeys.MAID_ID, UUID.fromString(payload.getMaidId()));
-        } catch (IllegalArgumentException e) {
-            TlmPetCarrier.LOGGER.error("载荷中的 maidId 不是合法 UUID，身份回写跳过：{}", payload.getMaidId(), e);
-        }
-        persistent.putInt(TlmNbtKeys.GENERATION, payload.getGeneration());
+        // 状态推进刻意放在"实体确认入世界之后"。若提前写，一旦 addFreshEntity 失败，
+        // 记录就会说"她在世界里"而世界找不到她 —— 玩家既迎不回也放手不了。
+        // 放在之后则最坏情况只是状态停留在 CARRIED，重试一次即可。
+        MaidCarrierState next = (current != null) ? current
+                : MaidCarrierState.fresh(maidId, worldName(server));
+        next.toInWorld(worldName(server));
+        MaidCarrierStateStore.write(server, player.getUUID(), next);
 
         TlmPetCarrier.LOGGER.info("已注入女仆 maidId={} 第 {} 代，落点 {}（名字 {}，好感度 {}）",
-                payload.getMaidId(), payload.getGeneration(), pos,
+                maidId, payload.getGeneration(), pos,
                 payload.getProfile().getName(), payload.getBond().getFavorability());
         return Result.success(maid);
+    }
+
+    /**
+     * @return 合法则返回 maidId，否则 null。
+     *         <p>
+     *         非法 maidId 必须中止注入而不是随机补一个：那会让同一个人在不同世界里
+     *         拥有不同身份，桌宠侧会认为是两个她。
+     */
+    @Nullable
+    private static UUID parseMaidId(CarrierPayload payload) {
+        try {
+            return UUID.fromString(payload.getMaidId());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            TlmPetCarrier.LOGGER.error("载荷中的 maidId 不是合法 UUID：{}", payload.getMaidId(), e);
+            return null;
+        }
+    }
+
+    /** 用存档名而不是维度 ID —— 玩家心里的"世界"是那个存档。 */
+    private static String worldName(MinecraftServer server) {
+        return server.getWorldData().getLevelName();
     }
 
     /**
