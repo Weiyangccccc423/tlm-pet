@@ -1,6 +1,7 @@
 package com.tlmpet.carrier.init;
 
 import com.tlmpet.carrier.TlmPetCarrier;
+import com.tlmpet.carrier.item.LoreItem;
 import com.tlmpet.carrier.item.RecallBellItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -34,24 +35,24 @@ public final class InitItems {
     // ---- 召回路线的材料 ----
 
     /** 羁绊之核：迎回之铃的核心材料。来自「第一次抽离」，即"解锁召回能力"。 */
-    public static final RegistryObject<Item> BOND_CORE = simple("bond_core");
+    public static final RegistryObject<Item> BOND_CORE = lore("bond_core");
 
     /** 归乡灵玉：来自「第一次迎回」，用于升级铃、降低冷却。 */
-    public static final RegistryObject<Item> HOMING_JADE = simple("homing_jade");
+    public static final RegistryObject<Item> HOMING_JADE = lore("homing_jade");
 
     /** 寻踪符：加速定位她，辅助类。 */
-    public static final RegistryObject<Item> TRACKING_CHARM = simple("tracking_charm");
+    public static final RegistryObject<Item> TRACKING_CHARM = lore("tracking_charm");
 
     /** 三途之钥：进阶，允许迎回时保留目标世界的坐标记忆。 */
-    public static final RegistryObject<Item> SANZU_KEY = simple("sanzu_key");
+    public static final RegistryObject<Item> SANZU_KEY = lore("sanzu_key");
 
     // ---- 桌宠侧与纪念 ----
 
     /** 回忆碎片：扩展桌宠侧记忆容量。 */
-    public static final RegistryObject<Item> MEMORY_SHARD = simple("memory_shard");
+    public static final RegistryObject<Item> MEMORY_SHARD = lore("memory_shard");
 
     /** 不灭之绊：羁绊满级的纪念饰品。 */
-    public static final RegistryObject<Item> UNDYING_BOND = simple("undying_bond");
+    public static final RegistryObject<Item> UNDYING_BOND = lore("undying_bond");
 
     /**
      * 彼岸花纪念物：放手仪式的唯一产物。
@@ -59,7 +60,7 @@ public final class InitItems {
      * <b>刻意没有任何用途</b> —— 它只记录她的名字与"她存在过"。
      * 这是 §14.5 原则 3 的直接体现。
      */
-    public static final RegistryObject<Item> HIGANBANA_KEEPSAKE = simple("higanbana_keepsake");
+    public static final RegistryObject<Item> HIGANBANA_KEEPSAKE = lore("higanbana_keepsake");
 
     // ---- 唯一的实用品 ----
 
@@ -87,6 +88,16 @@ public final class InitItems {
 
     private static RegistryObject<Item> simple(String name) {
         return ITEMS.register(name, () -> new Item(new Item.Properties()));
+    }
+
+    /**
+     * 带一句说明文字的纪念材料。
+     * <p>
+     * 这些物品没有合成表可查，玩家唯一能知道用途的地方就是物品说明 —— 尤其是
+     * {@code higanbana_keepsake} 刻意没有用途，不说明一定会被当成未完成品。
+     */
+    private static RegistryObject<Item> lore(String name) {
+        return ITEMS.register(name, () -> new LoreItem("item.tlm_pet." + name + ".lore"));
     }
 
     public static void init(IEventBus modEventBus) {

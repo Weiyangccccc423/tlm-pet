@@ -1,0 +1,27 @@
+{
+  "parent": "tlm_pet:first_carry",
+  "criteria": {
+    "has_bond_core": {
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "tlm_pet:bond_core"
+            ]
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    }
+  },
+  "requirements": [
+    [
+      "has_bond_core"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "tlm_pet:recall_bell"
+    ]
+  }
+}

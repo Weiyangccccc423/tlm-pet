@@ -20,9 +20,12 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 
+import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,12 +62,22 @@ public class RecallBellItem extends Item {
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
     }
 
+    /**
+     * 说明文字走翻译键，不硬编码 —— TLM 自己的提示也都是 {@code Component.translatable}，
+     * 硬编码中文会让英文客户端看到中英混排。
+     */
+    @Override
+    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
+        tooltip.add(Component.translatable("item.tlm_pet.recall_bell.lore").withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable("item.tlm_pet.recall_bell.lore_jade").withStyle(ChatFormatting.DARK_GRAY));
+    }
+
     private void recall(ServerLevel level, ServerPlayer player) {
         MinecraftServer server = level.getServer();
         MaidCarrierState state = MaidCarrierStateStore.get(server, player.getUUID()).orElse(null);
 
         if (state == null || !state.hasMaid() || state.getMaidId() == null) {
-            reject(player, "她不在你身边。先让桌宠把她的数据迎回来，铃才有回应的对象。");
+            reject(player, Component.translatable("message.tlm_pet.recall.no_maid"));
             return;
         }
 
@@ -74,13 +87,13 @@ public class RecallBellItem extends Item {
         // IN_WORLD 要再分两种：她可能就在这个存档里（那没什么可做的），也可能在<b>另一个存档</b>里
         // （玩家换世界时没带她）。后者是玩家最容易困惑的情形，必须把她所在的世界名说出来 ——
         // 这正是 lastSeenWorldId 存在的唯一用途。
-        String blocked = switch (state.getSoulState()) {
+        Component blocked = switch (state.getSoulState()) {
             case CARRIED -> null;
             case IN_WORLD -> isElsewhere(state, level)
-                    ? "她还在「" + state.getLastSeenWorldId() + "」里。先用桌宠把她收起来，才能带她来这边。"
-                    : "她已经在身边了。";
-            case FILM_HELD -> "她已经是一卷胶卷了 —— 先想好要怎么对待这卷胶卷，铃叫不回一张胶卷。";
-            case NONE -> "她不在你身边。";
+                    ? Component.translatable("message.tlm_pet.recall.elsewhere", state.getLastSeenWorldId())
+                    : Component.translatable("message.tlm_pet.recall.already_here");
+            case FILM_HELD -> Component.translatable("message.tlm_pet.recall.film");
+            case NONE -> Component.translatable("message.tlm_pet.recall.no_maid");
         };
         if (blocked != null) {
             reject(player, blocked);
@@ -90,24 +103,26 @@ public class RecallBellItem extends Item {
         UUID maidId = state.getMaidId();
         Optional<Path> file = MaidCarrierStore.findById(maidId.toString());
         if (file.isEmpty()) {
-            reject(player, "找不到她的数据（" + shortId(maidId) + "…）。去桌宠里看看她还在不在。");
+            reject(player, Component.translatable("message.tlm_pet.recall.payload_missing", shortId(maidId)));
             return;
         }
         Optional<CarrierPayload> parsed = CarrierPayload.read(file.get());
         if (parsed.isEmpty()) {
-            reject(player, "她的数据文件读不出来，可能已经损坏。原始文件仍在：" + file.get().getFileName());
+            reject(player, Component.translatable("message.tlm_pet.recall.payload_broken",
+                    file.get().getFileName().toString()));
             return;
         }
 
         MaidInjector.Result result = MaidInjector.inject(player, parsed.get(), findSpawnPos(level, player));
         if (!result.success()) {
-            reject(player, result.message());
+            reject(player, Component.literal(result.message()));
             return;
         }
 
         player.getCooldowns().addCooldown(this, cooldownTicks(player));
         player.displayClientMessage(
-                Component.literal("她回来了。").withStyle(ChatFormatting.LIGHT_PURPLE), false);
+                Component.translatable("message.tlm_pet.recall.success")
+                        .withStyle(ChatFormatting.LIGHT_PURPLE), false);
         TlmPetCarrier.LOGGER.info("玩家 {} 用迎回之铃召回了 maidId={}",
                 player.getName().getString(), maidId);
     }
@@ -157,7 +172,7 @@ public class RecallBellItem extends Item {
         return maidId.toString().substring(0, 8);
     }
 
-    private static void reject(ServerPlayer player, String message) {
-        player.displayClientMessage(Component.literal(message).withStyle(ChatFormatting.GRAY), false);
+    private static void reject(ServerPlayer player, Component message) {
+        player.displayClientMessage(message.copy().withStyle(ChatFormatting.GRAY), false);
     }
 }

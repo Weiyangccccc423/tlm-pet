@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "G": {
+      "item": "minecraft:gold_ingot"
+    },
+    "B": {
+      "item": "tlm_pet:bond_core"
+    },
+    "N": {
+      "item": "minecraft:bell"
+    }
+  },
+  "pattern": [
+    " G ",
+    "GBG",
+    " N "
+  ],
+  "result": {
+    "item": "tlm_pet:recall_bell"
+  },
+  "show_notification": true
+}

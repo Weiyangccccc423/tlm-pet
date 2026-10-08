@@ -21,13 +21,32 @@
   "advancements.tlm_pet.bond_preserved.description": "跨过世界，羁绊依然满级",
   "advancements.tlm_pet.let_go.title": "彼岸花开",
   "advancements.tlm_pet.let_go.description": "在祭坛上与她正式告别。这不是失去，是你亲手选择的告别",
+
+  "itemGroup.tlm_pet.main": "女仆羁绊",
+
   "item.tlm_pet.bond_core": "羁绊之核",
+  "item.tlm_pet.bond_core.lore": "迎回之铃的核心。它是「你曾把她收进行囊」这件事的凭证。",
   "item.tlm_pet.homing_jade": "归乡灵玉",
+  "item.tlm_pet.homing_jade.lore": "带在身上，铃的冷却从 30 秒缩短到 5 秒。不会被消耗。",
   "item.tlm_pet.tracking_charm": "寻踪符",
+  "item.tlm_pet.tracking_charm.lore": "用来寻出她的所在。",
   "item.tlm_pet.sanzu_key": "三途之钥",
+  "item.tlm_pet.sanzu_key.lore": "三途川的钥匙。迎回时可保留目标世界的坐标记忆。",
   "item.tlm_pet.memory_shard": "回忆碎片",
+  "item.tlm_pet.memory_shard.lore": "让她的冒险回忆在桌宠侧存放得更多。",
   "item.tlm_pet.undying_bond": "不灭之绊",
+  "item.tlm_pet.undying_bond.lore": "羁绊满级的凭证。跨过世界之后，依然如此。",
   "item.tlm_pet.higanbana_keepsake": "彼岸花纪念物",
+  "item.tlm_pet.higanbana_keepsake.lore": "她存在过的唯一凭证。没有用途 —— 也不需要有用途。",
   "item.tlm_pet.recall_bell": "迎回之铃",
-  "itemGroup.tlm_pet.main": "女仆羁绊"
+  "item.tlm_pet.recall_bell.lore": "把她从桌宠里唤回你所在的世界。冷却 30 秒。",
+  "item.tlm_pet.recall_bell.lore_jade": "背包里带着归乡灵玉时，冷却降为 5 秒。",
+
+  "message.tlm_pet.recall.no_maid": "她不在你身边。先让桌宠把她的数据迎回来，铃才有回应的对象。",
+  "message.tlm_pet.recall.already_here": "她已经在身边了。",
+  "message.tlm_pet.recall.elsewhere": "她还在「%s」里。先用桌宠把她收起来，才能带她来这边。",
+  "message.tlm_pet.recall.film": "她已经是一卷胶卷了 —— 先想好要怎么对待这卷胶卷，铃叫不回一张胶卷。",
+  "message.tlm_pet.recall.payload_missing": "找不到她的数据（%s…）。去桌宠里看看她还在不在。",
+  "message.tlm_pet.recall.payload_broken": "她的数据文件读不出来，可能已经损坏。原始文件仍在：%s",
+  "message.tlm_pet.recall.success": "她回来了。"
 }
