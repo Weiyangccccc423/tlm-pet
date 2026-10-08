@@ -75,7 +75,7 @@ public final class MaidSingletonEvents {
         MaidCarrierState current = MaidCarrierStateStore.get(server, ownerId).orElse(null);
         UUID arrivingMaidId = MaidAdoption.readMaidId(maid);
 
-        MaidSingletonGuard.Decision decision = MaidSingletonGuard.decide(current, arrivingMaidId);
+        MaidSingletonGuard.Decision decision = MaidAdoption.guardDecide(current, arrivingMaidId);
 
         if (MaidSingletonGuard.isAllowed(decision)) {
             // 放行。但"首次获得"必须在这里立刻登记身份 ——

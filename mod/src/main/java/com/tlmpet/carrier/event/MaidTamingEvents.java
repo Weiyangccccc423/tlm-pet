@@ -82,7 +82,7 @@ public final class MaidTamingEvents {
         }
         // 她已经带着身份（例如从胶卷/照片还原而来，或主人转换工具抢来的）。
         // 若玩家记录里没有她，就把她认作他的她 —— 这与兜底事件的口径完全一致。
-        if (MaidSingletonGuard.decide(current, arrivingMaidId)
+        if (MaidAdoption.guardDecide(current, arrivingMaidId)
                 == MaidSingletonGuard.Decision.ALLOW_FIRST_ACQUISITION) {
             MaidAdoption.recordFirstAcquisition(server, ownerId, maid, arrivingMaidId);
         }

@@ -2,6 +2,7 @@ package com.tlmpet.carrier.policy;
 
 import com.tlmpet.carrier.TlmNbtKeys;
 import com.tlmpet.carrier.TlmPetCarrier;
+import com.tlmpet.carrier.core.MaidArchive;
 import com.tlmpet.carrier.state.MaidCarrierState;
 import com.tlmpet.carrier.state.MaidCarrierStateStore;
 import com.tlmpet.carrier.util.WorldIds;
@@ -45,6 +46,35 @@ public final class MaidAdoption {
             return null;
         }
         return persistent.getUUID(TlmNbtKeys.MAID_ID);
+    }
+
+    /**
+     * 单女仆规则的统一裁决入口：先问记录，再问磁盘上的墓碑。
+     *
+     * <h2>为什么必须再过一次磁盘墓碑</h2>
+     * {@link MaidSingletonGuard#decide} 只看身份记录里的墓碑，而身份记录每位玩家只有一个槽位
+     * —— 于是只存得下一块墓碑：
+     *
+     * <pre>
+     * 放手 A → 获得 B → 放手 B    A 的墓碑被 B 覆盖
+     * 此时 A 的魂符 / 胶卷 / 照片若还在玩家手里 → 兜底会放行 → A 回来了
+     * </pre>
+     *
+     * {@link com.tlmpet.carrier.core.MaidArchive} 的归档目录可以无限累积，正是为了消除这个限制。
+     * 但归档只在 {@code MaidInjector} 里被查过，而"把她带回来的"路径远不止导入这一条：
+     * 魂符（{@code ItemSmartSlab}）、胶卷、照片、祭坛都会把她重新加进世界。
+     * 所以磁盘墓碑必须在<b>所有</b>入口都生效 —— 把这件事放在这里，三个入口（兜底事件、
+     * 驯服事件、驯服 mixin）就都不会漏。
+     *
+     * <p>磁盘墓碑<b>优先于</b>记录：一个已经被正式告别的 {@code maidId} 无论记录里写什么，
+     * 都不该再回来。这也是"不可撤销"唯一站得住的口径。
+     */
+    public static MaidSingletonGuard.Decision guardDecide(@Nullable MaidCarrierState current,
+                                                          @Nullable UUID arrivingMaidId) {
+        if (arrivingMaidId != null && MaidArchive.isReleased(arrivingMaidId)) {
+            return MaidSingletonGuard.Decision.DENY_RELEASED;
+        }
+        return MaidSingletonGuard.decide(current, arrivingMaidId);
     }
 
     /**

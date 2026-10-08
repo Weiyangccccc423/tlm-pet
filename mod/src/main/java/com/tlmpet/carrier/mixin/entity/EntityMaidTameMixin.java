@@ -83,7 +83,7 @@ public abstract class EntityMaidTameMixin {
         MaidCarrierState current = MaidCarrierStateStore.get(server, ownerId).orElse(null);
         UUID arrivingMaidId = MaidAdoption.readMaidId(maid);
 
-        if (MaidSingletonGuard.isAllowed(MaidSingletonGuard.decide(current, arrivingMaidId))) {
+        if (MaidSingletonGuard.isAllowed(MaidAdoption.guardDecide(current, arrivingMaidId))) {
             return;
         }
 
