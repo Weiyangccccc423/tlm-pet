@@ -115,5 +115,9 @@ gradle-app.setting
 run/
 runs/
 
+# 运行期日志。游戏跑在 run/ 下，但构建 JVM（ForgeGradle / mixin AP）会把日志写到项目根的
+# logs/，其中 debug-1.log.gz 这类文件不被上面的 *.log 规则覆盖，所以整个目录一起忽略。
+logs/
+
 # Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
 !gradle-wrapper.jar

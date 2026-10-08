@@ -223,11 +223,68 @@ maidTag.putString("id", "touhou_little_maid:maid");             // id 标签是�
 | AI 站点配置 | `MaidAIChat`（8 字段） | `MaidAIChatSerializable.java:61/75` | **留**（站点缺失自动回落默认站点，`MaidAIChatData.java:92-105`） |
 | **AI 提示词里的主人名** | `MaidAIChat` → `OwnerName` | 同上 | **重映射**（否则她用旧主人的称呼，见 §4.4） |
 | 棋局记录 | `MaidGameSkillData`（内含 `Gomoku` 等） | `MaidGameRecordManager.java:12-13` | **留** |
-| 击杀记录 | `KillRecord`（含 `TotalCount`/`Slime`/`Wither`/`EnderDragon`） | `MaidKillRecordManager.java:15-19` | **留** |
+| 击杀记录 | `KillRecord`（含 `TotalCount`/`Slime`/`Wither`/`EnderDragon`） | `MaidKillRecordManager.java:15-19` | **留** + **键名补偿**（上游 bug，见 §4.2.1） |
 | 主人 | `Owner`（UUID） | vanilla（TamableAnimal） | **重映射**为注入者 |
 | 坐姿 | `Sitting` | vanilla | **重置为 false** |
 | 女仆数量上限 | — | `MaidNumCapability` | **检查 `canAdd()` → 成功后 `add()`** |
-| 世界索引 | — | `MaidWorldData` | **注入后 `addInfo(maid)`** |
+| 世界索引 | — | `MaidWorldData` | **不登记**（语义修正，见 §4.2.1） |
+
+### 4.2.1 实现阶段核实出的两处修正
+
+以下两处是在 Phase 1 编码时逐行核对 TLM 1.5.3 源码后发现的，**与本节初稿的写法不同**。
+
+#### （1）`MaidWorldData` 的语义与初稿相反——注入时不应 `addInfo`
+
+初稿写的是"注入后 `addInfo(maid)`"。核实后可见实际语义正好相反：
+
+| 触发点 | 行为 |
+|---|---|
+| `EntityMaid.onAddedToWorld`（`:1012-1021`） | **`removeInfo(this)`** |
+| `EntityMaid.onRemovedFromWorld`（`:1023-1032`） | **`addInfo(this)`** |
+
+也就是说 `MaidWorldData` 是「**当前未加载**的女仆」的定位索引，而不是花名册。它的消费方只有三个物品：
+
+- `ItemTrumpet.java:42`（喇叭召回）
+- `ItemServantBell.java:153`（仆人铃）
+- `ItemFoxScroll.java:72,74`（狐之卷的定位列表）
+
+**并不存在以它为准的花名册 GUI。** 而 `addInfo`（`:124-129`）只是向 List 追加，**不去重**。
+
+因此注入时手动 `addInfo` 会有两个后果：制造一个假的"未加载"条目；等她真正卸载时 `onRemovedFromWorld` 再登记一次，使上述三个物品出现**重复项**。正确做法是**完全不碰**，交给 TLM 自己的生命周期。
+
+反过来，**抽离时应当调用 `removeInfo`**：她即将被 `discard()`，主动摘掉索引可以避免留下指向"已不存在的女仆"的条目。这一条已实现在 `MaidCarrierPolicy.unregister`。
+
+> 仍待处理（Phase 1b）：`MaidNumCapability` 那一行的 `add()` 也要重新审视。该计数器不跨存档，且被 4 条路径绕过（§12.3），它只能作为辅助防线。
+
+#### （2）上游 `KillRecord.TotalCount` 键名缺陷，导致 `challenge/kill_100` 几乎无法达成
+
+`MaidKillRecordManager` 的写入端与读取端键名不匹配：
+
+```java
+// 写入 :28 —— 用的是 KILL_RECORD（"KillRecord"）
+killRecord.putInt(KILL_RECORD, totalCount);
+// …:32 外层也是 KILL_RECORD
+compound.put(KILL_RECORD, killRecord);
+// 读取 :38 —— 读的却是 TOTAL_COUNT（"TotalCount"）
+totalCount = killRecord.getInt(TOTAL_COUNT);
+```
+
+全仓库搜索确认 `"TotalCount"` **只在 `:38` 被读取，从未被写入**。于是 NBT 里的实际结构是：
+
+```
+KillRecord: {
+  KillRecord: <totalCount>     ← 总数实际落在这里
+  Slime / Wither / EnderDragon ← 这三个键是配对的，正常
+}
+```
+
+**后果**：`totalCount` 每次实体 NBT 加载都归零（区块卸载再加载即触发），而 `:49` 的 `totalCount >= 100` 是 `TriggerType.KILL_100` 成就的**唯一**触发条件。所以 `challenge/kill_100` 要求玩家在一次不中断、不离开加载范围的游玩中累计 100 次击杀。
+
+**我们的对策**：`MaidCarrierPolicy.normalizeKillRecord` 在抽离时向该复合标签**补写一份 `TotalCount`**，使注入后 `readAdditionalSaveData` 能取回正确值。注意这是**补偿而非修复**——下一次原版存档时 `addAdditionalSaveData` 仍只写 `KILL_RECORD` 键，数值会在再下一次加载时再次丢失。彻底修复需要 mixin 或上游改动，已记入 §11 风险登记。
+
+> 该缺陷**不影响** `challenge/kill_slime_300`：`Slime` 键两侧一致。
+> 该成就也**不在** D9 要接管的 5 个之列（§13.3），所以它属于"原版未接管成就应当正常工作"的范畴（§13.4 验收项），需要在验收时单独记录为已知的上游问题。
+
 
 ### 4.3 为什么经验必须剥离
 
@@ -598,19 +655,33 @@ history.getDeque().descendingIterator().forEachRemaining(chatList::add);
 
 ### Phase 1：抽离 / 注入政策层（2–4 天）
 
-产出：
+产出（**已于 Phase 1 实现**，代码在 `mod/src/main/java/com/tlmpet/carrier/`）：
 1. `TlmNbtKeys` —— NBT 字面量集中表（因大量上游常量是 private，只能用字面量，需单点维护）；
 2. `MaidCarrierPolicy` —— §4.2 的剥离 / 重映射 / 世界绑定清理；
-3. `MaidExtractor` —— `maid.saveAsPassenger(tag)` → 剥离 → 打包；
-4. `MaidInjector` —— 解包 → `EntityType.create(tag, level)` → 世界绑定清理 → 登记；
-5. 命令 `/tlm-pet export|import|list` 用于验证；
-6. 抽离前先调用 `MaidBackupsManager.save(server, maid)`，利用既有系统留一条回滚路径。
+3. `MaidExtractor` —— 备份 → `saveWithoutId` → 剥离 → 补 `id` 键 → 打包 → 落盘 → 移出世界；
+4. `MaidInjector` —— 解包 → 校验和 → 重映射归属 → `EntityType.create` → 入世界 → 世界绑定清理 → 身份回写；
+5. `CarrierPayload` + `MaidCarrierStore` —— §6.2 载荷与落盘（落在 `config/tlm_pet/maids/`，理由同 §12.4）；
+6. 命令 `/tlm-pet export|import|list` 用于验证；
+7. 抽离前先调用 `MaidBackupsManager.save(server, maid)`，利用既有系统留一条回滚路径。
 
-**验收清单（唯一关键路径，逐条必过）**：
+> **实现与本节初稿的三处偏离**（前两处理由见 §4.2.1）：
+> ① `MaidWorldData` 改为「抽离时 `removeInfo`、注入时完全不碰」；
+> ② `KillRecord` 增加键名补偿；
+> ③ 初稿写的 `saveAsPassenger` 实际用的是 `saveWithoutId` + 手工补 `id` 键，与 `ItemCamera.java:78` 的既有做法一致。
+
+**自动化验证（已通过）**：`mod/src/test/java/com/tlmpet/carrier/policy/MaidCarrierPolicyTest.java`，8 个用例覆盖
+「剥」名单 27 个键、「留」名单 23 个键的逐字段值比较、四项重置、击杀记录补偿及其幂等性、归属与 AI 称呼重映射。
+这一层是纯 NBT 变换、不需要世界，所以能用单测兜住；但**它不能替代下面的游戏内验收** ——
+实体 UUID 重分配、备份生成、世界绑定清理都必须在真实世界里跑过才算数。
+
+**验收清单（唯一关键路径，逐条必过；均为游戏内人工验证）**：
 
 - [ ] 同存档导出→导入，名字 / 模型 / 好感度 / 记忆 / 击杀记录完全一致
-- [ ] 导入后女仆**不会乱跑**（`MaidSchedulePos` 与 `HomePos/HomeRadius` 已清）
-- [ ] 导入后**女仆列表里能看到她**（`MaidWorldData.addInfo` 已登记）
+      （击杀总数依赖 §4.2.1 的补偿；若不补偿它会变成 0，那是上游缺陷而非本功能的 bug）
+- [ ] 导入后女仆**不会乱跑**（`MaidSchedulePos` 与 `HomePos`/`HomeRadius` 已清，家模式已关）
+- [ ] 导入后她在世界里**可正常交互**：归属正确、能开界面、跟随与打工正常
+      ← 此项替代初稿的"女仆列表里能看到她"。不存在以 `MaidWorldData` 为准的花名册 GUI（§4.2.1）
+- [ ] 她**卸载后**才出现在狐之卷 / 仆人铃的列表里，且**只有一条**（验证没有重复登记）
 - [ ] **10 个格子确实为空**（`MaidHideInventory` + `MaidTaskInventory` 已清）
 - [ ] 主物品栏 / 饰品 / 护甲 / 手持 / 背包 / 经验均为空或 0
 - [ ] 好感度与 `Attributes` 数值**一致**（满羁绊 = 80 血 / 6 攻，且满血）
@@ -618,7 +689,7 @@ history.getDeque().descendingIterator().forEachRemaining(chatList::add);
 - [ ] 超过 `OWNER_MAX_MAID_NUM` 时正确拒绝（可用 `/tlm maid_num` 调小来测）
 - [ ] 跨存档导入坐标不越界、不掉入虚空
 - [ ] `generation` 递增、`nonce` 不复用
-- [ ] 抽离后原存档中该女仆已消失（D6"收走"语义）
+- [ ] 抽离后原存档中该女仆已消失（D6"收走"语义），且 `maid_backups` 里留有可恢复的备份
 
 ### Phase 1b：单女仆规则、放手仪式与成就接管（3–4 天，与 Phase 1 并行）
 
@@ -737,6 +808,8 @@ history.getDeque().descendingIterator().forEachRemaining(chatList::add);
 | **R20** | `FILM_HELD` 状态机出现漏洞 → 玩家拿到**两张她的胶卷** → 「两只她」的复制路径 | **高**（直接破坏 D7） | 状态迁移必须单向且由服务端权威判定：`CARRIED → FILM_HELD` 后桌宠侧立即停止提供迎回；`FILM_HELD` 期间拒绝二次取卷；把这条写进 §12.6 的验收清单并做对抗性测试 |
 | **R21** | 「迎回之铃」误用**实体 UUID** 作为绑定键 → 跨世界注入后她换了 UUID → 铃**永久失联** | 中 | 绑定 `maidId`（逻辑 ID，D4）。这是 `ItemServantBell` 的做法**不可照抄**的一点（§14.3），需专门回归测试 |
 | **R22** | 成就奖励材料进入交易/复制流通 → 迎回能力扩散到未完成成就的玩家；或材料过于稀有导致普通玩家拿不到 | 中 | ① 迎回之铃**不是硬门槛**（GUI 路径始终可用，§14.5 原则 1），扩散不构成功能性破坏；② 关键材料（羁绊之核）应设计为**不可交易**或与 `maidId` 绑定 |
+| **R23** | 误把 `MaidWorldData` 当作女仆花名册 → 注入时调用 `addInfo`，而她真正卸载时 `onRemovedFromWorld` 又登记一次 → 狐之卷 / 仆人铃 / 喇叭列表出现**重复项** | 中 | **已在实现阶段修正**：注入时完全不碰该索引，抽离时改调 `removeInfo`（见 §4.2.1）。验收时专门确认"卸载后列表里只有一条" |
+| **R24** | 上游 `MaidKillRecordManager` 写入端用 `KILL_RECORD`、读取端用 `TOTAL_COUNT`，`"TotalCount"` **从未被写入** → `totalCount` 每次读档归零 → `challenge/kill_100` 几乎无法达成 | 中（上游缺陷，非本功能引入） | 抽离时**补偿**补写 `TotalCount`（见 §4.2.1），使注入后数值正确；彻底修复需 mixin 或上游修复。验收时把该成就记为已知上游问题，不要误判为本功能的 bug |
 
 ---
 

@@ -78,6 +78,19 @@ dependencies {
 
     // refmap 生成依赖 mixin 注解处理器
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    // 政策层（剥离/重映射）是纯 NBT 变换，不需要世界就能验证。
+    // 设计文档 §4.2 涉及 25 个以上字段，靠游戏里肉眼核对极易漏项，所以用单测兜住这一层。
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        showStandardStreams = false
+    }
 }
 
 processResources {
