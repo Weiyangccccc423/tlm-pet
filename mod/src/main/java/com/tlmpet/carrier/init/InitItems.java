@@ -1,6 +1,7 @@
 package com.tlmpet.carrier.init;
 
 import com.tlmpet.carrier.TlmPetCarrier;
+import com.tlmpet.carrier.item.RecallBellItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -63,7 +64,7 @@ public final class InitItems {
     // ---- 唯一的实用品 ----
 
     /** 迎回之铃：快速召回她。绑定 maidId 而非实体 UUID（风险 R21）。 */
-    public static final RegistryObject<Item> RECALL_BELL = simple("recall_bell");
+    public static final RegistryObject<Item> RECALL_BELL = ITEMS.register("recall_bell", RecallBellItem::new);
 
     public static final RegistryObject<CreativeModeTab> MAIN_TAB = TABS.register("main",
             () -> CreativeModeTab.builder()

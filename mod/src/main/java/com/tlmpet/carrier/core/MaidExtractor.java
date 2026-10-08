@@ -8,6 +8,7 @@ import com.tlmpet.carrier.policy.MaidSingletonGuard;
 import com.tlmpet.carrier.state.MaidCarrierState;
 import com.tlmpet.carrier.state.MaidCarrierStateStore;
 import com.tlmpet.carrier.state.SoulState;
+import com.tlmpet.carrier.util.WorldIds;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.github.tartaricacid.touhoulittlemaid.world.backups.MaidBackupsManager;
 import net.minecraft.nbt.CompoundTag;
@@ -123,7 +124,7 @@ public final class MaidExtractor {
         maid.discard();
 
         // 状态推进紧随其实，且 toCarried() 恰好 +1，与上面算出的 generation 相等。
-        state.toCarried(worldName(server));
+        state.toCarried(WorldIds.of(server));
         MaidCarrierStateStore.write(server, playerId, state);
 
         // 成就：第一次抽离。这正是"解锁召回能力"的那一步，奖励是羁绊之核（迎回之铃的核心材料）。
@@ -133,11 +134,6 @@ public final class MaidExtractor {
         TlmPetCarrier.LOGGER.info("已抽离女仆 maidId={} 第 {} 代，落点 {}（名字 {}，好感度 {}）",
                 maidId, generation, file, payload.getProfile().getName(), payload.getBond().getFavorability());
         return Result.success(payload, file);
-    }
-
-    /** 用存档名而不是维度 ID —— 玩家心里的"世界"是那个存档。 */
-    private static String worldName(MinecraftServer server) {
-        return server.getWorldData().getLevelName();
     }
 
     /**

@@ -5,6 +5,7 @@ import com.tlmpet.carrier.TlmPetCarrier;
 import com.tlmpet.carrier.policy.MaidSingletonGuard;
 import com.tlmpet.carrier.state.MaidCarrierState;
 import com.tlmpet.carrier.state.MaidCarrierStateStore;
+import com.tlmpet.carrier.util.WorldIds;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
@@ -122,7 +123,7 @@ public final class MaidSingletonEvents {
             persistent.putInt(TlmNbtKeys.GENERATION, 1);
         }
 
-        MaidCarrierState state = MaidCarrierState.fresh(maidId, worldName(server));
+        MaidCarrierState state = MaidCarrierState.fresh(maidId, WorldIds.of(server));
         MaidCarrierStateStore.write(server, ownerId, state);
         TlmPetCarrier.LOGGER.info("已登记新的女仆身份：owner={}，maidId={}，世界=「{}」",
                 ownerId, maidId, state.getLastSeenWorldId());
@@ -149,13 +150,4 @@ public final class MaidSingletonEvents {
         }
     }
 
-    /**
-     * 给玩家看的世界名。
-     * <p>
-     * 用存档名而不是维度 ID：玩家心里的"世界"是那个存档（「幻想乡」），
-     * 而不是 {@code minecraft:overworld}。
-     */
-    private static String worldName(MinecraftServer server) {
-        return server.getWorldData().getLevelName();
-    }
 }
