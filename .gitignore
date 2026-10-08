@@ -1,0 +1,28 @@
+# ---- 通用 ----
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+*.log
+Thumbs.db
+.DS_Store
+*.bak
+*.orig
+*.rej
+
+# ---- Gradle（mod/ 目录下有更完整的 .gitignore）----
+.gradle/
+**/build/
+
+# ---- 桌宠 ----
+pet/node_modules/
+pet/dist/
+pet/target/
+pet/.venv/
+__pycache__/
+*.pyc
+
+# ---- 本地环境 ----
+.env
+.env.local
