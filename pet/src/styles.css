@@ -97,6 +97,20 @@ input:focus, select:focus { border-color: #99b8a3 !important; }
 .settings-form .check { display: flex; gap: 7px; align-items: center; }
 input[type=checkbox], input[type=range] { accent-color: #7b9d84; }
 input[type=range] { width: 100%; }
+.chat-panel { top: 82px; left: auto; right: 10px; width: 278px; max-height: 410px; border-radius: 18px; }
+.chat-panel .panel-header { padding: 14px 15px 11px; }
+.chat-panel .panel-header h2 { font-size: 15px; }
+.chat-panel .panel-header p { margin-top: 4px; font-size: 10px; }
+.chat-panel .messages { height: 280px; padding: 10px 13px; gap: 8px; }
+.chat-panel .message { max-width: 94%; }
+.chat-panel .message small { font-size: 9px; }
+.chat-panel .message p { margin-top: 3px; padding: 8px 10px; font-size: 11px; line-height: 1.6; }
+.chat-panel .chat-form { padding: 10px 12px; gap: 6px; }
+.chat-panel .chat-form input { padding: 9px 10px; font-size: 11px; }
+.chat-panel .send-button { padding: 9px 10px; }
+body.chat-open:not(.game-mode) #pet-stage { transform: translateX(-138px); }
+body.chat-open:not(.game-mode) .pet-shadow,
+body.chat-open:not(.game-mode) .pet-name { transform: translateX(-138px); }
 .credits { border-top: 1px solid #e5ebdf; padding-top: 10px; color: #8c9b87; font-size: 10px; }
 .credits summary { cursor: pointer; }
 .credits p { line-height: 1.8; }

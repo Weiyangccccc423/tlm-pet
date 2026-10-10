@@ -106,13 +106,13 @@ function header(title: string, subtitle: string): string {
   return `<header class="panel-header"><div><h2>${title}</h2><p>${subtitle}</p></div><button data-action="close-panel" class="icon-button" aria-label="关闭面板">${icon('close')}</button></header>`;
 }
 function closePanel(): void {
-  currentPanel = ''; panel.hidden = true;
+  currentPanel = ''; panel.hidden = true; panel.classList.remove('chat-panel'); document.body.classList.remove('chat-open');
   for (const button of app.querySelectorAll('.toolbar button')) button.classList.remove('active');
   updateInputPause();
 }
 function renderPanel(kind: string): void {
   if (!state) return;
-  currentPanel = kind; panel.hidden = false; bubble.hidden = true;
+  currentPanel = kind; panel.hidden = false; panel.classList.toggle('chat-panel', kind === 'chat'); document.body.classList.toggle('chat-open', kind === 'chat'); bubble.hidden = true;
   updateInputPause();
   for (const button of app.querySelectorAll<HTMLElement>('.toolbar button')) button.classList.toggle('active', button.dataset.action === kind);
   if (kind === 'chat') {
