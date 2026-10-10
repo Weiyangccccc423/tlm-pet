@@ -1,0 +1,109 @@
+:root { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #334a43; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 480px; min-height: 650px; background: #ecf0e9; }
+body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(ellipse at 80% 15%, #fff7e9 0, transparent 60%), radial-gradient(ellipse at 10% 90%, #d7e6dc 0, transparent 60%); pointer-events: none; }
+body::after { content: ''; position: fixed; inset: 0; background-image: radial-gradient(#516c581c 1px, transparent 1px); background-size: 26px 26px; pointer-events: none; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: wait; opacity: .5; }
+button, a, input, select { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible { outline: 2px solid #5b8d73; outline-offset: 3px; }
+button svg { width: 20px; height: 20px; display: block; }
+[hidden] { display: none !important; }
+#app { position: relative; min-height: 100vh; z-index: 1; display: flex; align-items: center; justify-content: center; gap: clamp(20px, 6vw, 110px); padding: 32px; }
+.preview-intro { max-width: 450px; }
+.eyebrow { color: #6b8277; font-size: 11px; letter-spacing: 2.6px; }
+h1 { font-family: "Microsoft YaHei", sans-serif; font-size: clamp(30px, 3.6vw, 48px); font-weight: 500; line-height: 1.65; letter-spacing: 3px; margin: 26px 0 20px; }
+.preview-intro > p { color: #78857c; font-size: 15px; line-height: 2; }
+.intro-note { display: inline-flex; align-items: center; gap: 9px; background: #ffffff80; border: 1px solid #ffffffbd; border-radius: 30px; padding: 10px 16px; margin: 24px 0; font-size: 12px; }
+.preview-intro small { display: block; color: #829086; line-height: 1.9; font-size: 12px; }
+.preview-intro a { display: block; color: #829086; text-decoration: none; font-size: 10px; margin-top: 42px; }
+.dot { width: 6px; height: 6px; background: #7ca891; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.pet-shell { position: relative; width: 480px; height: 650px; flex-shrink: 0; isolation: isolate; }
+.mode-tag { position: absolute; top: 10px; right: 28px; display: flex; gap: 7px; align-items: center; color: #799083; font-size: 10px; letter-spacing: 1px; z-index: 6; }
+.mode-switch { display: flex; border-radius: 20px; padding: 3px; background: #fffdf4ee; border: 1px solid #ffffffb0; }
+.mode-switch button { border: 0; background: transparent; color: #839688; font-size: 10px; padding: 5px 12px; border-radius: 14px; }
+.mode-switch button.active { background: #e3ebdf; color: #4f795c; }
+.game-mode .mode-switch button.active { background: #f2e2d4; color: #a76b4a; }
+.input-status { position: absolute; top: 47px; right: 29px; border: 0; border-radius: 12px; padding: 4px 9px; font-size: 10px; color: #9a7a5e; background: #fff8eede; z-index: 6; }
+.input-status[data-status=active] { color: #6c8760; }
+.input-status[data-status=error] { color: #ab6653; }
+.game-mode .bubble { top: 80px; }
+.provider-label { padding-left: 8px; border-left: 1px solid #9cad9f66; letter-spacing: 0; }
+#pet-stage { position: absolute; width: 100%; height: 475px; bottom: 76px; z-index: 1; touch-action: none; cursor: grab; }
+#pet-stage:active { cursor: grabbing; }
+#pet-stage canvas { display: block; }
+.pet-shadow { position: absolute; bottom: 134px; left: 155px; width: 170px; height: 18px; border-radius: 50%; background: #426b5117; filter: blur(8px); z-index: 0; pointer-events: none; }
+.bubble { position: absolute; top: 56px; left: 52px; right: 38px; padding: 16px 36px 16px 20px; border-radius: 20px 20px 20px 4px; background: #fffdf6f5; border: 1px solid #fff; box-shadow: 0 9px 30px #3750400b; font-size: 13px; line-height: 1.8; z-index: 3; max-height: 170px; overflow: auto; }
+.bubble button { position: absolute; top: 12px; right: 10px; border: none; background: none; color: #a2ada5; padding: 4px; }
+.bubble button svg { width: 14px; height: 14px; }
+.pet-name { position: absolute; left: 0; right: 0; bottom: 76px; text-align: center; pointer-events: none; }
+.pet-name span { font-size: 14px; letter-spacing: 5px; padding-left: 5px; }
+.pet-name small { display: block; font-size: 10px; color: #8b9a8f; margin-top: 5px; letter-spacing: 1px; }
+.toolbar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; padding: 7px 10px; border-radius: 18px; border: 1px solid #ffffffdc; background: #fffdf4ef; box-shadow: 0 4px 24px #345d4511; z-index: 5; }
+.toolbar button { border: none; background: none; padding: 10px; border-radius: 12px; color: #7c9183; transition: background .16s, color .16s; }
+.toolbar button:hover, .toolbar button.active { color: #4a7e63; background: #e6eee4; }
+.toolbar button:first-child { color: #bd8f86; }
+.divider { width: 1px; height: 18px; background: #e6e8df; margin: 0 4px; }
+.panel { position: absolute; top: 38px; left: 20px; right: 20px; max-height: 520px; background: #fffdf8fc; border: 1px solid #fff; border-radius: 22px; box-shadow: 0 12px 45px #2b483c26; z-index: 4; overflow: hidden; }
+.panel-header { display: flex; justify-content: space-between; align-items: start; padding: 20px 22px 16px; border-bottom: 1px solid #e8ece3; }
+h2 { font-size: 17px; font-weight: 500; letter-spacing: 1px; margin: 0; }
+.panel-header p { font-size: 11px; color: #90a092; margin: 7px 0 0; }
+.icon-button { border: 0; padding: 4px; background: none; color: #839489; }
+.messages { height: 246px; overflow: auto; padding: 14px 20px; display: flex; flex-direction: column; gap: 12px; }
+.message { max-width: 90%; align-self: flex-start; }
+.message small { font-size: 10px; color: #91a192; padding-left: 4px; }
+.message p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 5px 0 0; font-size: 12px; line-height: 1.8; background: #eef2e9; padding: 10px 13px; border-radius: 2px 12px 12px; }
+.message.user { align-self: flex-end; text-align: right; }
+.message.user p { background: #f3eae2; border-radius: 12px 2px 12px 12px; text-align: left; }
+input:not([type=checkbox]):not([type=range]), select { width: 100%; border: 1px solid #e1e7da; background: #fffefa; color: #425f50; border-radius: 9px; padding: 10px 12px; font-size: 12px; outline: none; }
+input::placeholder { color: #a1ada0; }
+input:focus, select:focus { border-color: #99b8a3 !important; }
+.chat-form, .memory-form { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid #edf0e7; }
+.send-button { background: #789c83; color: #fff; border: 0; border-radius: 11px; padding: 10px 12px; }
+.primary-button { border: none; border-radius: 9px; padding: 10px 17px; background: #789c83; color: white; font-size: 12px; white-space: nowrap; }
+.memory-list { max-height: 255px; min-height: 190px; overflow: auto; padding: 8px 20px; }
+.empty-memory { text-align: center; padding: 24px 0 12px; color: #9aa998; }
+.empty-memory svg { width: 26px; height: 26px; margin-bottom: 13px; }
+.empty-memory strong { display: block; font-size: 13px; font-weight: 400; }
+.empty-memory p { font-size: 11px; line-height: 1.8; }
+.memory-item { padding: 13px 0; border-bottom: 1px dashed #e4e9dc; }
+.memory-item p { font-size: 12px; line-height: 1.8; margin: 0 0 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.memory-item small { font-size: 10px; color: #a0ac9b; }
+.memory-item button { float: right; border: 0; background: none; color: #ad998d; font-size: 10px; }
+.memory-tabs { display: flex; gap: 4px; padding: 10px 20px 0; border-bottom: 1px solid #edf0e7; }
+.memory-tabs button, .secondary-button { border: 0; border-radius: 8px; padding: 7px 10px; color: #809486; background: transparent; font-size: 11px; }
+.memory-tabs button.active { color: #4f795c; background: #e6eee4; }
+.save-actions { display: flex; gap: 8px; padding: 12px 20px 5px; }
+.save-actions .primary-button { flex: 1; }
+.save-root { position: relative; margin: 8px 20px; padding: 9px 54px 9px 10px; border: 1px solid #e3eadf; border-radius: 9px; background: #fbfcf7; font-size: 10px; overflow-wrap: anywhere; }
+.save-root strong, .save-root small { display: block; }
+.save-root small, .save-root button, .save-world small, .save-warning { color: #95a294; font-size: 9px; }
+.save-root button { position: absolute; top: 9px; right: 8px; border: 0; background: none; color: #ad8178; font-size: 9px; }
+.save-owner { display: block; margin: 8px 20px; color: #7d907e; font-size: 10px; }
+.save-owner select { margin-top: 5px; }
+.save-worlds { max-height: 245px; overflow: auto; padding: 0 20px; }
+.save-world { padding: 11px 0; border-bottom: 1px dashed #e4e9dc; }
+.save-world header { display: flex; justify-content: space-between; gap: 8px; }
+.save-world p { margin: 6px 0 0; font-size: 10px; line-height: 1.7; color: #718275; }
+.save-warning { display: block; margin-top: 5px; color: #ad8178; overflow-wrap: anywhere; }
+.footnote { color: #97a191; font-size: 10px; line-height: 1.7; margin: 0 20px 14px; }
+.settings-form { padding: 14px 22px; overflow: auto; max-height: 427px; }
+.settings-form label { display: block; font-size: 11px; color: #7d907e; margin-bottom: 12px; }
+.settings-form label > input:not([type=checkbox]), .settings-form select { margin-top: 6px; }
+.settings-form .footnote { margin: 0 0 15px; }
+.settings-form > .primary-button { width: 100%; margin-bottom: 12px; }
+.settings-row { display: flex; gap: 26px; }
+.settings-form .check { display: flex; gap: 7px; align-items: center; }
+input[type=checkbox], input[type=range] { accent-color: #7b9d84; }
+input[type=range] { width: 100%; }
+.credits { border-top: 1px solid #e5ebdf; padding-top: 10px; color: #8c9b87; font-size: 10px; }
+.credits summary { cursor: pointer; }
+.credits p { line-height: 1.8; }
+.credits button { background: none; border: 0; padding: 0; color: #65876f; font-size: 10px; text-decoration: underline; }
+.error-toast { position: absolute; bottom: 72px; left: 22px; right: 22px; background: #fff2ed; color: #a76857; border: 1px solid #e4bdaa; padding: 12px 15px; border-radius: 12px; font-size: 12px; line-height: 1.6; z-index: 8; overflow-wrap: anywhere; }
+body.desktop { background: transparent; min-width: 0; min-height: 0; overflow: hidden; }
+body.desktop::before, body.desktop::after, body.desktop .preview-intro { display: none; }
+body.desktop #app { display: block; padding: 0; min-height: 0; width: 480px; height: 650px; }
+body.desktop .pet-shadow { background: #1a301c20; }
+@media (max-width: 900px) { .preview-intro { display: none; } #app { padding: 0; } }
