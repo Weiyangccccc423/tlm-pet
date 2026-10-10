@@ -35,6 +35,8 @@ h1 { font-family: "Microsoft YaHei", sans-serif; font-size: clamp(30px, 3.6vw, 4
 #pet-stage canvas { display: block; }
 .pet-shadow { position: absolute; bottom: 134px; left: 155px; width: 170px; height: 18px; border-radius: 50%; background: #426b5117; filter: blur(8px); z-index: 0; pointer-events: none; }
 .bubble { position: absolute; top: 56px; left: 52px; right: 38px; padding: 16px 36px 16px 20px; border-radius: 20px 20px 20px 4px; background: #fffdf6f5; border: 1px solid #fff; box-shadow: 0 9px 30px #3750400b; font-size: 13px; line-height: 1.8; z-index: 3; max-height: 170px; overflow: auto; }
+.bubble { width: fit-content; max-width: calc(100% - 90px); max-height: none; overflow: visible; }
+.bubble span { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
 .bubble button { position: absolute; top: 12px; right: 10px; border: none; background: none; color: #a2ada5; padding: 4px; }
 .bubble button svg { width: 14px; height: 14px; }
 .pet-name { position: absolute; left: 0; right: 0; bottom: 76px; text-align: center; pointer-events: none; }
@@ -109,6 +111,9 @@ input[type=range] { width: 100%; }
 .chat-panel .chat-form input { min-width: 0; padding: 9px 10px !important; font-size: 11px !important; }
 .chat-panel .chat-form .send-button { flex: 0 0 auto; padding: 9px 10px; }
 .chat-open:not(.game-mode) .bubble { left: 12px; right: auto; width: 182px; top: 92px; }
+.chat-composer { position: absolute; top: 344px; left: 50%; transform: translateX(-50%); width: 270px; display: flex; gap: 6px; padding: 6px; border: 1px solid #ffffffb8; border-radius: 13px; background: #fffdf84d; box-shadow: 0 6px 20px #2b483c12; backdrop-filter: blur(8px); z-index: 6; }
+.chat-composer input { min-width: 0; padding: 8px 10px !important; font-size: 11px !important; background: #ffffff40 !important; border-color: #ffffffb8 !important; }
+.chat-composer .send-button { flex: 0 0 auto; padding: 8px 10px; }
 body.chat-open:not(.game-mode) #pet-stage { transform: translateX(-138px); }
 body.chat-open:not(.game-mode) .pet-shadow,
 body.chat-open:not(.game-mode) .pet-name { transform: translateX(-138px); }

@@ -34,9 +34,11 @@ try {
   await page.getByRole('button', { name: '聊天', exact: true }).click();
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你还记得吗');
   await page.getByRole('button', { name: '发送', exact: true }).click();
-  await page.locator('#panel').getByText('我记着呢：今天一起看了日落。', { exact: true }).waitFor();
   assert.equal(await page.locator('#bubble').isHidden(), false);
   await page.screenshot({ path: 'qa-artifacts/chat.png' });
+  await page.getByRole('button', { name: '聊天记录', exact: true }).click();
+  await page.locator('#panel').getByText('我记着呢：今天一起看了日落。', { exact: true }).waitFor();
+  await page.screenshot({ path: 'qa-artifacts/chat-history.png' });
   await page.getByRole('button', { name: '关闭面板' }).click();
   for (const pose of ['sit', 'sleep', 'wave', 'idle']) {
     await page.evaluate(pose => window.petQA.pose(pose), pose);
@@ -55,7 +57,7 @@ try {
   // Exercise hit testing, click-through, and the actual frameless window drag.
   await page.mouse.move(12, 220);
   await page.waitForFunction(() => window.petQA.inspect().interactive === false);
-  await page.mouse.move(240, 370);
+  await page.mouse.move(240, 300);
   await page.waitForFunction(() => window.petQA.inspect().interactive === true);
   const before = await page.evaluate(() => window.petBridge.invoke('window:bounds'));
   await page.mouse.down();

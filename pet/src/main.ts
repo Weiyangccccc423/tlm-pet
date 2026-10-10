@@ -24,6 +24,7 @@ app.innerHTML = `
     <div id="bubble" class="bubble" role="status"><span id="bubble-text">等我一下，我马上就来。</span><button data-action="dismiss-bubble" aria-label="收起气泡">${icon('close')}</button></div>
     <div id="pet-stage" aria-label="酒狐，点击打招呼，拖动移动" role="img"></div>
     <div class="pet-shadow"></div>
+    <form id="chat-composer" class="chat-composer"><input name="content" aria-label="消息" placeholder="和酒狐说一句话" maxlength="4000" autocomplete="off" required><button class="send-button" aria-label="发送">${icon('send')}</button></form>
     <section id="panel" class="panel" hidden aria-label="陪伴面板"></section>
     <div class="pet-name"><span>酒狐</span><small id="pose-label">陪着你</small></div>
     <nav class="toolbar" aria-label="酒狐互动">
@@ -39,7 +40,10 @@ app.innerHTML = `
   </main>`;
 
 const element = <T extends HTMLElement = HTMLElement>(selector: string) => app.querySelector<T>(selector)!;
+const chatButton = app.querySelector<HTMLElement>('[data-action=chat]');
+chatButton?.insertAdjacentHTML('afterend', `<button data-action="chat-history" title="聊天记录" aria-label="聊天记录">${icon('book')}</button>`);
 const panel = element('#panel');
+const composer = element<HTMLFormElement>('#chat-composer');
 const bubble = element('#bubble');
 const scene = new PetScene(element('#pet-stage'));
 let state: Snapshot;
@@ -106,13 +110,13 @@ function header(title: string, subtitle: string): string {
   return `<header class="panel-header"><div><h2>${title}</h2><p>${subtitle}</p></div><button data-action="close-panel" class="icon-button" aria-label="关闭面板">${icon('close')}</button></header>`;
 }
 function closePanel(): void {
-  currentPanel = ''; panel.hidden = true; panel.classList.remove('chat-panel'); document.body.classList.remove('chat-open');
+  currentPanel = ''; panel.hidden = true; composer.hidden = false; panel.classList.remove('chat-panel'); document.body.classList.remove('chat-open');
   for (const button of app.querySelectorAll('.toolbar button')) button.classList.remove('active');
   updateInputPause();
 }
 function renderPanel(kind: string): void {
   if (!state) return;
-  currentPanel = kind; panel.hidden = false; panel.classList.toggle('chat-panel', kind === 'chat'); document.body.classList.toggle('chat-open', kind === 'chat'); bubble.hidden = true;
+  currentPanel = kind; panel.hidden = false; composer.hidden = true; panel.classList.toggle('chat-panel', kind === 'chat'); document.body.classList.toggle('chat-open', kind === 'chat'); bubble.hidden = true;
   updateInputPause();
   for (const button of app.querySelectorAll<HTMLElement>('.toolbar button')) button.classList.toggle('active', button.dataset.action === kind);
   if (kind === 'chat') {
@@ -124,6 +128,9 @@ function renderPanel(kind: string): void {
     const chatSubtitle = panel.querySelector('.panel-header p');
     if (chatSubtitle) chatSubtitle.textContent = '最新回复会显示在酒狐的气泡中';
     element<HTMLInputElement>('#chat-form input').focus();
+  } else if (kind === 'chat-history') {
+    panel.innerHTML = header('聊天记录', '之前的对话都会保存在这里。') + '<div class="messages" aria-live="polite"></div>';
+    renderMessages();
   } else if (kind === 'memories') {
     panel.innerHTML = header('我们的记忆本', '手动记忆和各世界酒狐的冒险记录。')
       + '<div class="memory-tabs"><button type="button" data-action="memory-tab" data-tab="manual">手动记忆</button><button type="button" data-action="memory-tab" data-tab="worlds">世界存档</button></div><div id="memory-view"></div>';
@@ -222,7 +229,9 @@ app.addEventListener('click', event => {
   else if (action === 'rest') {
     const next = currentPose === 'sit' ? 'sleep' : currentPose === 'sleep' ? 'idle' : 'sit';
     pose(next); say({ sit: '坐一会儿吧，我就在旁边。', sleep: '我先眯一会儿，有事叫我。', idle: '休息好啦，继续陪你。' }[next]);
-  } else if (['chat', 'memories', 'settings'].includes(action ?? '')) { if (currentPanel === action) closePanel(); else renderPanel(action!); }
+  } else if (action === 'chat') { closePanel(); element<HTMLInputElement>('#chat-composer input').focus(); }
+  else if (action === 'chat-history') { if (currentPanel === 'chat-history') closePanel(); else renderPanel('chat-history'); }
+  else if (['memories', 'settings'].includes(action ?? '')) { if (currentPanel === action) closePanel(); else renderPanel(action!); }
   else if (action === 'memory-tab') renderMemoryView(button.dataset.tab === 'worlds' ? 'worlds' : 'manual');
   else if (action === 'choose-save') void invoke<Snapshot>('saves:choose').then(result => { if (result) { state = result; renderMemoryView('worlds'); say('我会把这些世界里的记录带回来。'); } }).catch(showError);
   else if (action === 'refresh-saves') void invoke<Snapshot>('saves:refresh').then(result => { state = result; renderMemoryView('worlds'); }).catch(showError);
@@ -237,7 +246,7 @@ app.addEventListener('submit', event => {
   event.preventDefault();
   const form = event.target as HTMLFormElement;
   const values = new FormData(form);
-  if (form.id === 'chat-form') {
+  if (form.id === 'chat-composer' || form.id === 'chat-form') {
     if (pending) return;
     const content = String(values.get('content') ?? '').trim(); if (!content) return;
     pending = true; appendMessage('user', content); appendMessage('assistant', '正在想怎么回答你…'); form.reset();
