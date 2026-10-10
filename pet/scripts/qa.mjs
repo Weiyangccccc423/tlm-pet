@@ -34,7 +34,8 @@ try {
   await page.getByRole('button', { name: '聊天', exact: true }).click();
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你还记得吗');
   await page.getByRole('button', { name: '发送', exact: true }).click();
-  await page.getByText('我记着呢：今天一起看了日落。', { exact: true }).waitFor();
+  await page.locator('#panel').getByText('我记着呢：今天一起看了日落。', { exact: true }).waitFor();
+  assert.equal(await page.locator('#bubble').isHidden(), false);
   await page.screenshot({ path: 'qa-artifacts/chat.png' });
   await page.getByRole('button', { name: '关闭面板' }).click();
   for (const pose of ['sit', 'sleep', 'wave', 'idle']) {

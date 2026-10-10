@@ -119,6 +119,10 @@ function renderPanel(kind: string): void {
     panel.innerHTML = header('和酒狐聊聊', state.settings.provider === 'local' ? '离线陪伴 · 可在设置中接入 AI' : 'AI 陪伴 · 记忆与动作已连接')
       + `<div class="messages" aria-live="polite"></div><form id="chat-form" class="chat-form"><input name="content" aria-label="消息" placeholder="今天过得怎么样？" maxlength="4000" autocomplete="off" required><button class="send-button" aria-label="发送" ${pending ? 'disabled' : ''}>${icon('send')}</button></form>`;
     renderMessages();
+    const chatTitle = panel.querySelector('h2');
+    if (chatTitle) chatTitle.textContent = '聊天记录';
+    const chatSubtitle = panel.querySelector('.panel-header p');
+    if (chatSubtitle) chatSubtitle.textContent = '最新回复会显示在酒狐的气泡中';
     element<HTMLInputElement>('#chat-form input').focus();
   } else if (kind === 'memories') {
     panel.innerHTML = header('我们的记忆本', '手动记忆和各世界酒狐的冒险记录。')
@@ -245,6 +249,10 @@ app.addEventListener('submit', event => {
       if (currentPanel !== 'chat') say(reply.message.content);
     }).catch(error => { showError(error); }).finally(() => {
       pending = false;
+      if (currentPanel === 'chat') {
+        const latest = [...state.messages].reverse().find(message => message.role === 'assistant');
+        if (latest) say(latest.content, true);
+      }
       if (currentPanel === 'chat') { renderMessages(); element<HTMLButtonElement>('#chat-form button').disabled = false; }
     });
   } else if (form.id === 'memory-form') {
