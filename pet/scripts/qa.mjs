@@ -26,6 +26,7 @@ try {
     await window.petBridge.invoke('settings', { ...state.settings, motion: false });
   });
   await page.screenshot({ path: 'qa-artifacts/greeting.png' });
+  assert.equal(await page.locator('#chat-composer').isHidden(), true);
   await page.getByRole('button', { name: '记忆本', exact: true }).click();
   await page.getByRole('textbox', { name: '记忆内容' }).fill('今天一起看了日落');
   await page.getByRole('button', { name: '记住', exact: true }).click();
@@ -35,7 +36,13 @@ try {
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('你还记得吗');
   await page.getByRole('button', { name: '发送', exact: true }).click();
   assert.equal(await page.locator('#bubble').isHidden(), false);
+  await page.waitForFunction(() => window.petQA.inspect().pending === false);
+  await page.locator('#chat-composer input').fill('Second message');
+  await page.locator('#chat-composer button').click();
+  await page.waitForFunction(() => window.petQA.inspect().messages === 4);
   await page.screenshot({ path: 'qa-artifacts/chat.png' });
+  await page.getByRole('button', { name: '聊天', exact: true }).click();
+  assert.equal(await page.locator('#chat-composer').isHidden(), true);
   await page.getByRole('button', { name: '聊天记录', exact: true }).click();
   await page.locator('#panel').getByText('我记着呢：今天一起看了日落。', { exact: true }).waitFor();
   await page.screenshot({ path: 'qa-artifacts/chat-history.png' });
@@ -51,7 +58,7 @@ try {
   await page.waitForFunction(() => document.querySelector('#panel').hidden);
   const snapshot = await page.evaluate(() => window.petBridge.invoke('snapshot'));
   assert.equal(snapshot.settings.motion, false);
-  assert.equal(snapshot.messages.length, 2);
+  assert.equal(snapshot.messages.length, 4);
   assert.equal(snapshot.memories.length, 1);
   assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop()), true);
   // Exercise hit testing, click-through, and the actual frameless window drag.

@@ -24,7 +24,7 @@ app.innerHTML = `
     <div id="bubble" class="bubble" role="status"><span id="bubble-text">等我一下，我马上就来。</span><button data-action="dismiss-bubble" aria-label="收起气泡">${icon('close')}</button></div>
     <div id="pet-stage" aria-label="酒狐，点击打招呼，拖动移动" role="img"></div>
     <div class="pet-shadow"></div>
-    <form id="chat-composer" class="chat-composer"><input name="content" aria-label="消息" placeholder="和酒狐说一句话" maxlength="4000" autocomplete="off" required><button class="send-button" aria-label="发送">${icon('send')}</button></form>
+    <form id="chat-composer" class="chat-composer" hidden><input name="content" aria-label="消息" placeholder="和酒狐说一句话" maxlength="4000" autocomplete="off" required><button class="send-button" aria-label="发送">${icon('send')}</button></form>
     <section id="panel" class="panel" hidden aria-label="陪伴面板"></section>
     <div class="pet-name"><span>酒狐</span><small id="pose-label">陪着你</small></div>
     <nav class="toolbar" aria-label="酒狐互动">
@@ -110,7 +110,7 @@ function header(title: string, subtitle: string): string {
   return `<header class="panel-header"><div><h2>${title}</h2><p>${subtitle}</p></div><button data-action="close-panel" class="icon-button" aria-label="关闭面板">${icon('close')}</button></header>`;
 }
 function closePanel(): void {
-  currentPanel = ''; panel.hidden = true; composer.hidden = false; panel.classList.remove('chat-panel'); document.body.classList.remove('chat-open');
+  currentPanel = ''; panel.hidden = true; composer.hidden = true; panel.classList.remove('chat-panel'); document.body.classList.remove('chat-open');
   for (const button of app.querySelectorAll('.toolbar button')) button.classList.remove('active');
   updateInputPause();
 }
@@ -229,7 +229,12 @@ app.addEventListener('click', event => {
   else if (action === 'rest') {
     const next = currentPose === 'sit' ? 'sleep' : currentPose === 'sleep' ? 'idle' : 'sit';
     pose(next); say({ sit: '坐一会儿吧，我就在旁边。', sleep: '我先眯一会儿，有事叫我。', idle: '休息好啦，继续陪你。' }[next]);
-  } else if (action === 'chat') { closePanel(); element<HTMLInputElement>('#chat-composer input').focus(); }
+  } else if (action === 'chat') {
+    const opening = composer.hidden;
+    closePanel();
+    composer.hidden = !opening;
+    if (opening) element<HTMLInputElement>('#chat-composer input').focus();
+  }
   else if (action === 'chat-history') { if (currentPanel === 'chat-history') closePanel(); else renderPanel('chat-history'); }
   else if (['memories', 'settings'].includes(action ?? '')) { if (currentPanel === action) closePanel(); else renderPanel(action!); }
   else if (action === 'memory-tab') renderMemoryView(button.dataset.tab === 'worlds' ? 'worlds' : 'manual');
@@ -262,7 +267,8 @@ app.addEventListener('submit', event => {
         const latest = [...state.messages].reverse().find(message => message.role === 'assistant');
         if (latest) say(latest.content, true);
       }
-      if (currentPanel === 'chat') { renderMessages(); element<HTMLButtonElement>('#chat-form button').disabled = false; }
+      if (currentPanel === 'chat') renderMessages();
+      form.querySelector<HTMLButtonElement>('button')!.disabled = false;
     });
   } else if (form.id === 'memory-form') {
     void invoke<Snapshot>('remember', { content: values.get('content') }).then(result => { state = result; if (currentPanel === 'memories') { renderMemories(); form.reset(); } }).catch(showError);
